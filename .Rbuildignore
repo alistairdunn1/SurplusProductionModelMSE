@@ -1,0 +1,36 @@
+# Ignore development files
+^\.Rproj\.user$
+^\.Rhistory$
+^\.RData$
+^\.Ruserdata$
+
+# Ignore build files
+.*\.tar\.gz$
+.*\.zip$
+
+# Ignore temporary files
+^\.DS_Store$
+^Thumbs\.db$
+
+# Ignore development directories
+^docs$
+^dev$
+^scratch$
+
+# Ignore package building artifacts
+.*\.Rcheck$
+.*\.cache$
+^vignettes/.*\.html$
+^vignettes/.*\.R$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
+
+# Ignore IDE files
+^\.vscode$
+
+# Ignore CI files
+^\.github$
+
+# Ignore implementation tracking
+^IMPLEMENTATION_PROGRESS\.md$

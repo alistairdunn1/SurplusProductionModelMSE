@@ -1,0 +1,40 @@
+Package: MSE
+Type: Package
+Title: Management Strategy Evaluation for Antarctic Toothfish
+Version: 0.1.0
+Authors@R: 
+    person("Alistair", "Dunn", 
+           email = "alistair.dunn@example.com", 
+           role = c("aut", "cre"),
+           comment = c(ORCID = "YOUR-ORCID-ID"))
+Description: 
+    A closed-loop Management Strategy Evaluation (MSE) framework for 
+    Antarctic toothfish (Dissostichus mawsoni). Provides operating model 
+    forward projection, observation and implementation error simulation, 
+    harvest control rules, and performance metric evaluation. Supports 
+    spatial structure mismatch testing between operating and estimation 
+    models using the SurplusProductionModel package as the assessment engine.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+VignetteBuilder: knitr
+URL: https://github.com/alistairdunn1/MSE
+BugReports: https://github.com/alistairdunn1/MSE/issues
+Depends: 
+    R (>= 4.1.0)
+Imports:
+    SurplusProductionModel (>= 0.1.0),
+    checkmate (>= 2.0.0),
+    ggplot2 (>= 3.4.0),
+    rlang,
+    stats,
+    utils
+Suggests:
+    testthat (>= 3.0.0),
+    knitr (>= 1.40),
+    rmarkdown (>= 2.20),
+    future (>= 1.30.0),
+    future.apply (>= 1.10.0)
+Config/testthat/edition: 3

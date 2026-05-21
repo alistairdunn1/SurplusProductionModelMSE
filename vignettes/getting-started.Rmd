@@ -1,0 +1,388 @@
+---
+title: "Getting Started with MSE"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with MSE}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+## Introduction
+
+The **MSE** package provides a closed-loop Management Strategy Evaluation
+framework for Antarctic toothfish (*Dissostichus mawsoni*). It uses the
+**SurplusProductionModel** package as the assessment engine and supports
+spatial structure mismatch testing between operating and estimation models.
+
+A Management Strategy Evaluation simulates the full feedback loop of fishery
+management: the *operating model* (OM) represents the "true" population, a
+*harvest control rule* (HCR) sets catch limits, *observation error* adds
+realistic noise to monitoring data, and an optional *estimation model* (EM)
+re-estimates stock status each year. By running many stochastic replicates,
+MSE quantifies expected trade-offs among management objectives—yield,
+conservation risk, and catch stability.
+
+Key capabilities:
+
+- Forward projection with Pella-Tomlinson population dynamics (single- or multi-area)
+- Four built-in harvest control rules (constant F, constant catch, hockey stick,
+  CCAMLR krill-style)
+- Observation error calibrated from fitted model residuals
+- Implementation error with autocorrelation and maximum overage caps
+- Performance metrics: depletion risk, yield, biomass ratios, catch variability
+- Spatial robustness testing with OM/EM structural mismatch
+- Trade-off visualisation with Pareto frontiers
+
+## Installation
+
+```r
+# Install from GitHub (requires SurplusProductionModel)
+# install.packages("devtools")
+devtools::install_github("alistairdunn1/SurplusProductionModel")
+devtools::install_github("alistairdunn1/MSE")
+```
+
+## Quick Start: A Single-Area MSE
+
+This guide walks through a complete MSE from configuration to results
+interpretation, using a simple single-area Schaefer model.
+
+### Step 1 — Define the Operating Model
+
+The operating model specifies the "true" population. We use parameters
+loosely based on Ross Sea Antarctic toothfish:
+
+```{r define-om}
+library(MSE)
+
+om <- om_config(
+  n_areas = 1L,
+  true_params = list(
+    r = 0.3,         # intrinsic growth rate
+    K = 5000,        # carrying capacity (tonnes)
+    m = 2,           # shape (m=2 is the Schaefer model)
+    sigma_obs = 0.2, # observation error SD (log-scale)
+    q = 0.001,       # CPUE catchability
+    B0 = 5000        # initial biomass = K (unfished)
+  )
+)
+
+print(om)
+```
+
+With the Schaefer model ($m = 2$), biological reference points are:
+
+$$
+B_{\text{MSY}} = \frac{K}{2}, \quad
+F_{\text{MSY}} = \frac{r}{2m} = \frac{r}{4}, \quad
+\text{MSY} = \frac{r K}{8}
+$$
+
+For our parameters: $B_{\text{MSY}}$ = 2500 t, $F_{\text{MSY}}$ = 0.075,
+MSY = 187.5 t.
+
+### Step 2 — Choose Harvest Control Rules
+
+We compare two management strategies: a constant catch rule and a
+hockey-stick rule that reduces catch when biomass declines.
+
+```{r define-hcrs}
+# Strategy 1: constant catch at 80% of MSY
+hcr_const <- hcr_constant_catch(catch_target = 150)
+
+# Strategy 2: hockey-stick that ramps F down when B < 0.4K
+hcr_hs <- hcr_hockey_stick(
+  f_target = 0.075,   # target F = FMSY
+  b_limit  = 0.20,    # F = 0 below 20% K
+  b_target = 0.40     # full F above 40% K
+)
+```
+
+### Step 3 — Create Scenarios
+
+Each scenario combines an HCR with optional implementation error. Here we
+add moderate implementation error (CV = 10%, no bias):
+
+```{r define-scenarios}
+ie <- impl_error(cv = 0.1, bias = 1.0, autocorr = 0, max_overage = 1.2)
+
+scenarios <- list(
+  create_scenario(
+    name = "Constant catch",
+    harvest_control_rule = hcr_const,
+    implementation_error = ie
+  ),
+  create_scenario(
+    name = "Hockey stick",
+    harvest_control_rule = hcr_hs,
+    implementation_error = ie
+  )
+)
+```
+
+### Step 4 — Run the MSE
+
+Run 50 stochastic replicates over a 20-year projection horizon. We skip the
+estimation model in this example to focus on the feedback loop mechanics:
+
+```{r run-mse}
+set.seed(42)
+
+result <- mse_simulation(
+  operating_model  = om,
+  scenarios        = scenarios,
+  n_sims           = 50L,
+  n_proj_years     = 20L,
+  min_assess_years = 99L,   # skip EM fitting (use true biomass)
+  seed             = 42L,
+  verbose          = FALSE
+)
+
+print(result)
+```
+
+Setting `min_assess_years = 99L` means the estimation model is never invoked
+and the HCR receives the true biomass. This is useful for understanding HCR
+behaviour in isolation, without the additional noise from stock assessment
+estimation error.
+
+### Step 5 — Evaluate Performance
+
+Calculate performance metrics for each scenario. The default thresholds
+flag the probability of biomass falling below 50% and 20% of $K$:
+
+```{r performance}
+perf_const <- calculate_performance_metrics(
+  trajectories = result$results[["Constant catch"]]$trajectories,
+  om_config    = om,
+  thresholds   = c(0.5, 0.2)
+)
+
+perf_hs <- calculate_performance_metrics(
+  trajectories = result$results[["Hockey stick"]]$trajectories,
+  om_config    = om,
+  thresholds   = c(0.5, 0.2)
+)
+
+cat("=== Constant Catch ===\n")
+summary(perf_const)
+
+cat("\n=== Hockey Stick ===\n")
+summary(perf_hs)
+```
+
+### Step 6 — Visualise Trade-Offs
+
+The `compare_scenarios()` function creates a trade-off plot with Pareto
+frontier identification. First, attach the performance objects to the MSE
+result:
+
+```{r tradeoff, fig.height = 5}
+# Attach performance to result for compare_scenarios
+result$results[["Constant catch"]]$performance <- perf_const
+result$results[["Hockey stick"]]$performance <- perf_hs
+
+p <- compare_scenarios(
+  mse_results = result,
+  metric_x    = "mean_catch",
+  metric_y    = "Pr(B<20%B0)_ever"
+)
+print(p)
+```
+
+Points on the Pareto frontier represent strategies where no alternative
+achieves higher catch without also increasing risk (or vice versa).
+
+## Biomass Trajectory Plots
+
+We can extract and plot the biomass trajectories from the MSE result to
+visualise population dynamics under each strategy:
+
+```{r trajectory-plot, fig.height = 4}
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+
+for (sc_name in c("Constant catch", "Hockey stick")) {
+  bio_raw <- result$results[[sc_name]]$trajectories$biomass
+  # biomass may be 3D [sims x years x areas]; collapse to 2D for single-area
+  if (length(dim(bio_raw)) == 3) {
+    bio <- bio_raw[, , 1]
+  } else {
+    bio <- bio_raw
+  }
+  n_sims <- nrow(bio)
+  n_yrs  <- ncol(bio)
+  years  <- seq_len(n_yrs)
+
+  plot(NA, xlim = c(1, n_yrs), ylim = c(0, max(bio, na.rm = TRUE)),
+       xlab = "Projection Year", ylab = "Biomass (t)", main = sc_name)
+  for (i in seq_len(min(n_sims, 20))) {
+    lines(years, bio[i, ], col = adjustcolor("steelblue", 0.3))
+  }
+  # Median trajectory
+  med <- apply(bio, 2, median, na.rm = TRUE)
+  lines(years, med, col = "darkblue", lwd = 2)
+  abline(h = 5000 * 0.5, lty = 2, col = "red")  # BMSY
+  abline(h = 5000 * 0.2, lty = 3, col = "red")   # 20% K limit
+}
+```
+
+## Harvest Control Rules in Detail
+
+The MSE package provides four HCR factory functions, each returning a
+closure with signature `function(biomass, reference_points)`:
+ 
+| HCR | Description |
+|-----|-------------|
+| `hcr_constant_f(f_target)` | Apply a fixed fishing mortality rate |
+| `hcr_constant_catch(catch_target)` | Apply a fixed catch regardless of biomass |
+| `hcr_hockey_stick(f_target, b_limit, b_target)` | Ramp F linearly between limit and target depletion |
+| `hcr_ccamlr_krill(gamma, target_depletion, limit_depletion)` | CCAMLR-style precautionary rule |
+
+The hockey-stick rule is particularly useful for CCAMLR-style management:
+
+$$
+F =
+\begin{cases}
+0 & \text{if } B/K \leq b_{\text{limit}} \\
+F_{\text{target}} \cdot \frac{B/K - b_{\text{limit}}}{b_{\text{target}} - b_{\text{limit}}} & \text{if } b_{\text{limit}} < B/K < b_{\text{target}} \\
+F_{\text{target}} & \text{if } B/K \geq b_{\text{target}}
+\end{cases}
+$$
+
+## Multi-Area Spatial Models
+
+The framework supports spatial structure in the operating model. Areas are
+connected via a movement kernel built from a distance matrix:
+
+```{r spatial-om}
+om_spatial <- om_config(
+  n_areas         = 2L,
+  movement_rate   = 0.1,
+  distance_matrix = matrix(c(0, 100, 100, 0), nrow = 2),
+  true_params     = list(
+    r = 0.3, K = 5000, m = 2,
+    sigma_obs = 0.2, q = 0.001, B0 = 5000
+  )
+)
+```
+
+The movement kernel is computed from the distance matrix:
+
+```{r movement-kernel}
+kernel <- build_movement_kernel(
+  distance_matrix = matrix(c(0, 100, 100, 0), nrow = 2),
+  decay = 0.01
+)
+print(kernel)
+```
+
+### Spatial Robustness: Self-Test
+
+A *self-test* verifies that when the EM has the same spatial structure as the
+OM, the management procedure performs as expected. This is a sanity check
+before testing spatial misspecification:
+
+```{r self-test, eval = FALSE}
+st <- run_self_test(
+  operating_model      = om,
+  harvest_control_rule = hcr_const,
+  n_sims               = 20L,
+  n_proj_years         = 20L,
+  seed                 = 123L
+)
+print(st)
+```
+
+If `biomass_conserved` and `positive_biomass` are both `TRUE`, the model
+machinery is working correctly.
+
+## Implementation Error
+
+The `impl_error()` specification adds realism by modelling the difference
+between the intended TAC and realised catch:
+
+```{r impl-error-example}
+ie_ar1 <- impl_error(
+  cv          = 0.15,     # coefficient of variation
+  bias        = 1.0,      # no systematic bias
+  autocorr    = 0.3,      # year-to-year correlation
+  max_overage = 1.2       # cap realised catch at 120% of TAC
+)
+
+# Apply to a single TAC
+set.seed(1)
+result_ie <- apply_implementation_error(
+  tac          = 200,
+  impl_config  = ie_ar1,
+  previous_eps = 0,
+  seed         = 1L
+)
+cat(sprintf("TAC = 200, Realised catch = %.1f\n", result_ie$catch))
+```
+
+## Observation Error
+
+Observation error parameters can be calibrated from a previously fitted
+model, or specified directly:
+
+```{r obs-error-manual}
+obs_params <- structure(
+  list(
+    sigma  = 0.2,
+    rho    = 0,
+    labels = NULL,
+    n_obs  = 20L
+  ),
+  class = "obs_error_params"
+)
+print(obs_params)
+```
+
+When a fitted `ProductionModel` is available, use `calibrate_observation_error()`
+to extract residual-based parameters automatically.
+
+## Model Formulation
+
+The operating model uses the Pella-Tomlinson surplus production model:
+
+**Production function:**
+
+$$P(B) = \frac{r \, B}{m} \left[ 1 - \left(\frac{B}{K}\right)^{m-1} \right]$$
+
+**State equation:**
+
+$$B_{t+1} = B_t + P(B_t) - C_t$$
+
+**For multi-area models**, biomass is redistributed according to a movement
+kernel $\mathbf{M}$ at each time step:
+
+$$\mathbf{B}_{t+1} = \mathbf{M} \cdot \left[ \mathbf{B}_t + P(\mathbf{B}_t) - \mathbf{C}_t \right]$$
+
+**Reference points** (Pella-Tomlinson):
+
+$$
+B_{\text{MSY}} = K \left(\frac{1}{m}\right)^{1/(m-1)}, \quad
+F_{\text{MSY}} = \frac{r(1 - 1/m)}{m}, \quad
+\text{MSY} = F_{\text{MSY}} \times B_{\text{MSY}}
+$$
+
+## Next Steps
+
+- Add an estimation model via `em_config()` to test assessment-based feedback
+- Explore spatial misspecification (e.g. 2-area OM with 1-area EM)
+- Run `compare_scenarios()` to evaluate Pareto-optimal management strategies
+- Use `equilibrium_f()` to compute equilibrium fishing mortality at any
+  depletion level
+
+```{r session-info}
+sessionInfo()
+```

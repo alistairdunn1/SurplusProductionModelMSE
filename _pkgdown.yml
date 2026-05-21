@@ -1,0 +1,70 @@
+url: https://alistairdunn1.github.io/MSE/
+
+template:
+  bootstrap: 5
+
+navbar:
+  structure:
+    left:  [intro, reference, articles, news]
+    right: [search, github]
+  components:
+    github:
+      icon: fa-github
+      href: https://github.com/alistairdunn1/MSE
+
+reference:
+  - title: MSE Simulation
+    desc: Core closed-loop MSE simulation
+    contents:
+      - mse_simulation
+
+  - title: Harvest Control Rules
+    desc: Built-in harvest control rule factory functions
+    contents:
+      - hcr_constant_f
+      - hcr_constant_catch
+      - hcr_hockey_stick
+      - hcr_ccamlr_krill
+
+  - title: Operating Model
+    desc: Forward projection and movement
+    contents:
+      - project_biomass
+      - project_trajectory
+      - build_movement_kernel
+
+  - title: Error Simulation
+    desc: Observation and implementation error
+    contents:
+      - calibrate_observation_error
+      - simulate_cpue
+      - apply_implementation_error
+
+  - title: Performance Evaluation
+    desc: Performance metrics and trade-off visualisation
+    contents:
+      - calculate_performance_metrics
+      - equilibrium_f
+      - compare_scenarios
+
+  - title: Spatial Robustness
+    desc: Self-test and spatial mismatch validation
+    contents:
+      - run_self_test
+
+  - title: Configuration
+    desc: Configuration constructors and validators
+    contents:
+      - om_config
+      - em_config
+      - impl_error
+      - create_scenario
+      - validate_om_config
+      - validate_em_config
+      - validate_impl_error
+      - validate_mse_scenario
+
+articles:
+  - title: Getting Started
+    contents:
+      - getting-started
