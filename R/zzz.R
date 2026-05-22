@@ -1,11 +1,11 @@
 .onAttach <- function(libname, pkgname) {
   packageStartupMessage(
-    "MSE v",
-    utils::packageVersion("MSE"),
+    "SurplusProductionModelMSE v",
+    utils::packageVersion("SurplusProductionModelMSE"),
     " loaded."
   )
   packageStartupMessage(
-    "Management Strategy Evaluation framework for Antarctic toothfish."
+    "Management Strategy Evaluation framework."
   )
 }
 

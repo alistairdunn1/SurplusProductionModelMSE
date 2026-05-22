@@ -1,19 +1,19 @@
 Package: MSE
 Type: Package
-Title: Management Strategy Evaluation for Antarctic Toothfish
+Title: Management Strategy Evaluation
 Version: 0.1.0
 Authors@R: 
     person("Alistair", "Dunn", 
-           email = "alistair.dunn@example.com", 
+           email = "alistair.dunn@oceanenvironmental.co.nz", 
            role = c("aut", "cre"),
            comment = c(ORCID = "YOUR-ORCID-ID"))
 Description: 
-    A closed-loop Management Strategy Evaluation (MSE) framework for 
-    Antarctic toothfish (Dissostichus mawsoni). Provides operating model 
-    forward projection, observation and implementation error simulation, 
-    harvest control rules, and performance metric evaluation. Supports 
-    spatial structure mismatch testing between operating and estimation 
-    models using the SurplusProductionModel package as the assessment engine.
+    A closed-loop Management Strategy Evaluation (MSE) framework. Provides 
+    operating model forward projection, observation and implementation 
+    error simulation, harvest control rules, and performance metric 
+    evaluation. Supports spatial structure mismatch testing between 
+    operating and estimation models using the SurplusProductionModel 
+    package as the assessment engine.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true

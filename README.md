@@ -1,18 +1,20 @@
-# MSE: Management Strategy Evaluation for Antarctic Toothfish
+# MSE: Management Strategy Evaluation
 
 <!-- badges: start -->
+
 [![R-CMD-check](https://github.com/alistairdunn1/MSE/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/alistairdunn1/MSE/actions/workflows/R-CMD-check.yaml)
 [![test-coverage](https://github.com/alistairdunn1/MSE/actions/workflows/test-coverage.yaml/badge.svg)](https://github.com/alistairdunn1/MSE/actions/workflows/test-coverage.yaml)
+
 <!-- badges: end -->
 
 ## Overview
 
-**MSE** provides a closed-loop Management Strategy Evaluation framework for Antarctic toothfish (*Dissostichus mawsoni*). It uses the [SurplusProductionModel](https://github.com/alistairdunn1/SurplusProductionModel) package as the assessment engine and supports:
- 
+**MSE** provides a closed-loop Management Strategy Evaluation framework. It uses the [SurplusProductionModel](https://github.com/alistairdunn1/SurplusProductionModel) package as the assessment engine and supports:
+
 - **Operating model** forward projection with Pella-Tomlinson dynamics and spatial movement
 - **Observation error** simulation calibrated from fitted model residuals
 - **Implementation error** (catch vs TAC) with lognormal errors and temporal autocorrelation
-- **Harvest control rules**: constant F, constant catch, hockey-stick, CCAMLR-style
+- **Harvest control rules**: constant F, constant catch, hockey-stick
 - **Performance metrics**: AAV, depletion risk, yield, biomass ratio
 - **Spatial robustness testing**: OM/EM structural mismatch scenarios
 - **Parallel processing** via the `future` package
@@ -23,7 +25,7 @@
 # Install from GitHub (requires SurplusProductionModel)
 # install.packages("remotes")
 remotes::install_github("alistairdunn1/SurplusProductionModel")
-remotes::install_github("alistairdunn1/MSE")
+remotes::install_github("alistairdunn1/SurplusProductionModelMSE")
 ```
 
 ## Quick Example
@@ -73,14 +75,14 @@ compare_scenarios(result, "mean_catch", "Pr(B<20%B0)_ever")
 
 ## Package Structure
 
-| Module | Description |
-|--------|-------------|
-| Operating Model | Forward projection with Pella-Tomlinson dynamics and spatial movement |
-| Observation Error | Future CPUE simulation calibrated from historical residuals |
-| Implementation Error | Stochastic catch realisation from TAC advice |
-| Harvest Control Rules | Predefined and custom HCR functions |
-| Performance Metrics | AAV, depletion risk, yield, biomass-based metrics |
-| Spatial Robustness | OM/EM mismatch testing scenarios |
+| Module                | Description                                                           |
+| --------------------- | --------------------------------------------------------------------- |
+| Operating Model       | Forward projection with Pella-Tomlinson dynamics and spatial movement |
+| Observation Error     | Future CPUE simulation calibrated from historical residuals           |
+| Implementation Error  | Stochastic catch realisation from TAC advice                          |
+| Harvest Control Rules | Predefined and custom HCR functions                                   |
+| Performance Metrics   | AAV, depletion risk, yield, biomass-based metrics                     |
+| Spatial Robustness    | OM/EM mismatch testing scenarios                                      |
 
 ## Dependencies
 
@@ -94,9 +96,5 @@ compare_scenarios(result, "mean_catch", "Pr(B<20%B0)_ever")
 This package is part of the ATO rTMB project:
 
 1. **SurplusProductionModel** — Pella-Tomlinson surplus production model (operating model / estimation model)
-2. **MSE** — Management Strategy Evaluation framework (this package)
-3. **IntegratedAgelengthModel** — Integrated age-length model (future)
-
-## License
-
-MIT
+2. **SurplusProductionModelMSE** — Management Strategy Evaluation framework (this package)
+3.

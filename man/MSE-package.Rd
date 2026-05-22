@@ -4,10 +4,9 @@
 \name{MSE-package}
 \alias{MSE}
 \alias{MSE-package}
-\title{MSE: Management Strategy Evaluation for Antarctic Toothfish}
+\title{MSE: Management Strategy Evaluation}
 \description{
-A closed-loop Management Strategy Evaluation (MSE) framework for Antarctic
-toothfish (\emph{Dissostichus mawsoni}). Uses the
+A closed-loop Management Strategy Evaluation (MSE) framework. Uses the
 \code{\link[SurplusProductionModel]{SurplusProductionModel}} package as the
 assessment engine and provides operating model projection, observation and
 implementation error simulation, harvest control rules, and performance

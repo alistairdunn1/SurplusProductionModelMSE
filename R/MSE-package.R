@@ -1,7 +1,6 @@
-#' MSE: Management Strategy Evaluation for Antarctic Toothfish
+#' MSE: Management Strategy Evaluation
 #'
-#' A closed-loop Management Strategy Evaluation (MSE) framework for Antarctic
-#' toothfish (\emph{Dissostichus mawsoni}). Uses the
+#' A closed-loop Management Strategy Evaluation (MSE) framework. Uses the
 #' \code{\link[SurplusProductionModel]{SurplusProductionModel}} package as the
 #' assessment engine and provides operating model projection, observation and
 #' implementation error simulation, harvest control rules, and performance
