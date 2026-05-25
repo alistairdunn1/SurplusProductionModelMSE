@@ -1,4 +1,4 @@
-#' MSE: Management Strategy Evaluation
+#' SurplusProductionModelMSE: Management Strategy Evaluation
 #'
 #' A closed-loop Management Strategy Evaluation (MSE) framework. Uses the
 #' \code{\link[SurplusProductionModel]{SurplusProductionModel}} package as the
@@ -57,6 +57,6 @@
 #' }
 #'
 #' @docType package
-#' @name MSE-package
+#' @name SurplusProductionModelMSE-package
 #' @keywords internal
 "_PACKAGE"

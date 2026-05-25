@@ -1,4 +1,4 @@
-Package: MSE
+Package: SurplusProductionModelMSE
 Type: Package
 Title: Management Strategy Evaluation
 Version: 0.1.0
@@ -20,8 +20,8 @@ LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 VignetteBuilder: knitr
-URL: https://github.com/alistairdunn1/MSE
-BugReports: https://github.com/alistairdunn1/MSE/issues
+URL: https://github.com/alistairdunn1/SurplusProductionModelMSE
+BugReports: https://github.com/alistairdunn1/SurplusProductionModelMSE/issues
 Depends: 
     R (>= 4.1.0)
 Imports:

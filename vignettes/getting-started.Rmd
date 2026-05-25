@@ -1,8 +1,8 @@
 ---
-title: "Getting Started with MSE"
+title: "Getting Started with SurplusProductionModelMSE"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Getting Started with MSE}
+  %\VignetteIndexEntry{Getting Started with SurplusProductionModelMSE}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -18,7 +18,7 @@ knitr::opts_chunk$set(
 
 ## Introduction
 
-The **MSE** package provides a closed-loop Management Strategy Evaluation
+The **SurplusProductionModelMSE** package provides a closed-loop Management Strategy Evaluation
 framework. It uses the
 **SurplusProductionModel** package as the assessment engine and supports
 spatial structure mismatch testing between operating and estimation models.
@@ -48,7 +48,7 @@ Key capabilities:
 # Install from GitHub (requires SurplusProductionModel)
 # install.packages("devtools")
 devtools::install_github("alistairdunn1/SurplusProductionModel")
-devtools::install_github("alistairdunn1/MSE")
+devtools::install_github("alistairdunn1/SurplusProductionModelMSE")
 ```
 
 ## Quick Start: A Single-Area MSE
@@ -62,7 +62,7 @@ The operating model specifies the "true" population. We use parameters
 loosely based on Ross Sea Antarctic toothfish:
 
 ```{r define-om}
-library(MSE)
+library(SurplusProductionModelMSE)
 
 om <- om_config(
   n_areas = 1L,

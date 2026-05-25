@@ -130,7 +130,7 @@ test_that("Pareto frontier is correct for simple dominance", {
   # So A is Pareto optimal and B is not
   x <- c(200, 100) # mean_catch: higher better → dir = +1
   y <- c(0.1, 0.5) # Pr(...): lower better → dir = -1
-  result <- MSE:::.is_pareto_optimal(x, y, "mean_catch", "Pr(B<20%B0)_final")
+  result <- SurplusProductionModelMSE:::.is_pareto_optimal(x, y, "mean_catch", "Pr(B<20%B0)_final")
   expect_equal(result, c(TRUE, FALSE))
 })
 
@@ -138,25 +138,25 @@ test_that("Pareto frontier with trade-off keeps both points", {
   # Neither dominates the other
   x <- c(200, 100) # A has higher catch
   y <- c(0.5, 0.1) # B has lower risk
-  result <- MSE:::.is_pareto_optimal(x, y, "mean_catch", "Pr(B<20%B0)_final")
+  result <- SurplusProductionModelMSE:::.is_pareto_optimal(x, y, "mean_catch", "Pr(B<20%B0)_final")
   expect_equal(result, c(TRUE, TRUE))
 })
 
 test_that("single scenario is always Pareto optimal", {
-  result <- MSE:::.is_pareto_optimal(100, 0.3, "mean_catch", "AAV")
+  result <- SurplusProductionModelMSE:::.is_pareto_optimal(100, 0.3, "mean_catch", "AAV")
   expect_true(result)
 })
 
 test_that("metric direction: risk metrics are lower-is-better", {
-  expect_equal(MSE:::.metric_direction("Pr(B<50%B0)_final"), -1)
-  expect_equal(MSE:::.metric_direction("Pr(F>F50%B0)_ever"), -1)
-  expect_equal(MSE:::.metric_direction("AAV"), -1)
+  expect_equal(SurplusProductionModelMSE:::.metric_direction("Pr(B<50%B0)_final"), -1)
+  expect_equal(SurplusProductionModelMSE:::.metric_direction("Pr(F>F50%B0)_ever"), -1)
+  expect_equal(SurplusProductionModelMSE:::.metric_direction("AAV"), -1)
 })
 
 test_that("metric direction: catch and biomass ratios are higher-is-better", {
-  expect_equal(MSE:::.metric_direction("mean_catch"), 1)
-  expect_equal(MSE:::.metric_direction("mean_B_BMSY"), 1)
-  expect_equal(MSE:::.metric_direction("final_B_B0"), 1)
+  expect_equal(SurplusProductionModelMSE:::.metric_direction("mean_catch"), 1)
+  expect_equal(SurplusProductionModelMSE:::.metric_direction("mean_B_BMSY"), 1)
+  expect_equal(SurplusProductionModelMSE:::.metric_direction("final_B_B0"), 1)
 })
 
 # ========================================================================
@@ -336,7 +336,7 @@ test_that(".extract_scenario_metrics returns correct columns", {
   sc2 <- create_scenario("s2", hcr_constant_f(0.10))
   res <- run_quick_mse(om, list(sc1, sc2))
 
-  df <- MSE:::.extract_scenario_metrics(res, "aggregate")
+  df <- SurplusProductionModelMSE:::.extract_scenario_metrics(res, "aggregate")
   expect_true(all(c("metric", "scope", "value", "scenario") %in% names(df)))
   expect_true(all(c("s1", "s2") %in% df$scenario))
 })
@@ -348,7 +348,7 @@ test_that(".extract_scenario_metrics pools across mse_result list", {
   res1 <- run_quick_mse(om, sc1, seed = 1)
   res2 <- run_quick_mse(om, sc2, seed = 2)
 
-  df <- MSE:::.extract_scenario_metrics(list(res1, res2), "aggregate")
+  df <- SurplusProductionModelMSE:::.extract_scenario_metrics(list(res1, res2), "aggregate")
   expect_true(all(c("s1", "s2") %in% df$scenario))
 })
 
@@ -403,7 +403,7 @@ test_that("higher catch produces higher mean catch metric", {
     initial_tac = 300, seed = 1
   )
 
-  df <- MSE:::.extract_scenario_metrics(list(res_lo, res_hi), "aggregate")
+  df <- SurplusProductionModelMSE:::.extract_scenario_metrics(list(res_lo, res_hi), "aggregate")
   catch_lo <- df$value[df$scenario == "low" & df$metric == "mean_catch"]
   catch_hi <- df$value[df$scenario == "high" & df$metric == "mean_catch"]
   expect_true(catch_hi > catch_lo)
@@ -424,7 +424,7 @@ test_that("higher catch produces lower final depletion", {
     initial_tac = 300, seed = 1
   )
 
-  df <- MSE:::.extract_scenario_metrics(list(res_lo, res_hi), "aggregate")
+  df <- SurplusProductionModelMSE:::.extract_scenario_metrics(list(res_lo, res_hi), "aggregate")
   dep_lo <- df$value[df$scenario == "low" & df$metric == "final_B_B0"]
   dep_hi <- df$value[df$scenario == "high" & df$metric == "final_B_B0"]
   expect_true(dep_lo > dep_hi)

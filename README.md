@@ -1,15 +1,15 @@
-# MSE: Management Strategy Evaluation
+# SurplusProductionModelMSE: Management Strategy Evaluation
 
 <!-- badges: start -->
 
-[![R-CMD-check](https://github.com/alistairdunn1/MSE/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/alistairdunn1/MSE/actions/workflows/R-CMD-check.yaml)
-[![test-coverage](https://github.com/alistairdunn1/MSE/actions/workflows/test-coverage.yaml/badge.svg)](https://github.com/alistairdunn1/MSE/actions/workflows/test-coverage.yaml)
+[![R-CMD-check](https://github.com/alistairdunn1/SurplusProductionModelMSE/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/alistairdunn1/SurplusProductionModelMSE/actions/workflows/R-CMD-check.yaml)
+[![test-coverage](https://github.com/alistairdunn1/SurplusProductionModelMSE/actions/workflows/test-coverage.yaml/badge.svg)](https://github.com/alistairdunn1/SurplusProductionModelMSE/actions/workflows/test-coverage.yaml)
 
 <!-- badges: end -->
 
 ## Overview
 
-**MSE** provides a closed-loop Management Strategy Evaluation framework. It uses the [SurplusProductionModel](https://github.com/alistairdunn1/SurplusProductionModel) package as the assessment engine and supports:
+**SurplusProductionModelMSE** provides a closed-loop Management Strategy Evaluation framework. It uses the [SurplusProductionModel](https://github.com/alistairdunn1/SurplusProductionModel) package as the assessment engine and supports:
 
 - **Operating model** forward projection with Pella-Tomlinson dynamics and spatial movement
 - **Observation error** simulation calibrated from fitted model residuals
@@ -31,7 +31,7 @@ remotes::install_github("alistairdunn1/SurplusProductionModelMSE")
 ## Quick Example
 
 ```r
-library(MSE)
+library(SurplusProductionModelMSE)
 
 # Configure operating model (single-area Schaefer)
 om <- om_config(

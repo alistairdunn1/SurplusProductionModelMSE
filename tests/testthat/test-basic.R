@@ -1,4 +1,4 @@
-test_that("MSE package loads", {
-  expect_true("MSE" %in% loadedNamespaces() ||
-    requireNamespace("MSE", quietly = TRUE))
+test_that("SurplusProductionModelMSE package loads", {
+  expect_true("SurplusProductionModelMSE" %in% loadedNamespaces() ||
+    requireNamespace("SurplusProductionModelMSE", quietly = TRUE))
 })

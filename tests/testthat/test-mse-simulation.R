@@ -663,26 +663,26 @@ test_that("mse_result stores the matched call", {
 test_that(".compute_true_msy gives correct Schaefer MSY", {
   tp <- list(r = 0.3, K = 5000, m = 2)
   # FMSY = 0.3*(1-0.5)/2 = 0.075, BMSY = 5000*0.5 = 2500, MSY = 187.5
-  expect_equal(MSE:::.compute_true_msy(tp), 187.5)
+  expect_equal(SurplusProductionModelMSE:::.compute_true_msy(tp), 187.5)
 })
 
 test_that(".compute_true_msy handles Fox model", {
   tp <- list(r = 0.3, K = 5000, m = 1)
-  msy <- MSE:::.compute_true_msy(tp)
+  msy <- SurplusProductionModelMSE:::.compute_true_msy(tp)
   expect_equal(msy, 0.3 / exp(1) * 5000 / exp(1), tolerance = 1e-8)
 })
 
 test_that(".build_hcr_ref_points with EM result", {
   em_res <- list(K = 5000, msy = 200, bmsy = 2500, fmsy = 0.08)
   tp <- list(r = 0.3, K = 5000, m = 2)
-  ref <- MSE:::.build_hcr_ref_points(em_res, tp)
+  ref <- SurplusProductionModelMSE:::.build_hcr_ref_points(em_res, tp)
   expect_equal(ref$K, 5000)
   expect_equal(ref$MSY, 200)
 })
 
 test_that(".build_hcr_ref_points fallback to true params", {
   tp <- list(r = 0.3, K = 5000, m = 2)
-  ref <- MSE:::.build_hcr_ref_points(NULL, tp)
+  ref <- SurplusProductionModelMSE:::.build_hcr_ref_points(NULL, tp)
   expect_equal(ref$K, 5000)
   expect_equal(ref$MSY, 187.5)
   expect_equal(ref$FMSY, 0.075)
@@ -690,7 +690,7 @@ test_that(".build_hcr_ref_points fallback to true params", {
 
 test_that(".make_obs_params creates valid obs_error_params", {
   tp <- list(sigma_obs = 0.2)
-  oep <- MSE:::.make_obs_params(tp)
+  oep <- SurplusProductionModelMSE:::.make_obs_params(tp)
   expect_s3_class(oep, "obs_error_params")
   expect_equal(oep$sigma, 0.2)
   expect_equal(oep$rho, 0)
