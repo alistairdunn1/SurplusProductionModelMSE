@@ -56,6 +56,10 @@
 #'   \item Spatial aggregation scenarios
 #' }
 #'
+#' @references Pella, J. J.; Tomlinson, P. K. (1969). A generalised stock production model. Inter-American Tropical Tuna Commission Bulletin 13, 419-496.
+#'
+#' Turchin, P. (1998). Quantitative Analysis of Movement: Measuring and Modelling Population Redistribution in Animals and Plants. Sinauer Associates, Sunderland, MA.
+#'
 #' @docType package
 #' @name SurplusProductionModelMSE-package
 #' @keywords internal

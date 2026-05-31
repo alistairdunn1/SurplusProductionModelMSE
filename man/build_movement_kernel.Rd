@@ -31,3 +31,6 @@ Movement weights are:
 Each row is then normalized to sum to 1:
 \deqn{K_{ab} = W_{ab} / \sum_b W_{ab}}
 }
+\references{
+Turchin, P. (1998). Quantitative Analysis of Movement: Measuring and Modelling Population Redistribution in Animals and Plants. Sinauer Associates, Sunderland, MA.
+}

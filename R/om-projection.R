@@ -26,6 +26,8 @@
 #' Each row is then normalized to sum to 1:
 #' \deqn{K_{ab} = W_{ab} / \sum_b W_{ab}}
 #'
+#' @references Turchin, P. (1998). Quantitative Analysis of Movement: Measuring and Modelling Population Redistribution in Animals and Plants. Sinauer Associates, Sunderland, MA.
+#'
 #' @export
 build_movement_kernel <- function(distance_matrix,
                                   attractiveness = NULL,
@@ -89,6 +91,10 @@ build_movement_kernel <- function(distance_matrix,
 #' Spatial redistribution (when \code{movement_rate > 0}):
 #' \deqn{B'_a = (1 - \rho) \cdot B_a + \rho \cdot \sum_b K_{ab} \cdot B_b}
 #' where \eqn{K} is the gravity movement kernel.
+#'
+#' @references Pella, J. J.; Tomlinson, P. K. (1969). A generalised stock production model. Inter-American Tropical Tuna Commission Bulletin 13, 419-496.
+#'
+#' Turchin, P. (1998). Quantitative Analysis of Movement: Measuring and Modelling Population Redistribution in Animals and Plants. Sinauer Associates, Sunderland, MA.
 #'
 #' Biomass is floored at a small positive value (0.01) to prevent
 #' numerical issues.

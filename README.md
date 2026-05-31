@@ -11,7 +11,7 @@
 
 **SurplusProductionModelMSE** provides a closed-loop Management Strategy Evaluation framework. It uses the [SurplusProductionModel](https://github.com/alistairdunn1/SurplusProductionModel) package as the assessment engine and supports:
 
-- **Operating model** forward projection with Pella-Tomlinson dynamics and spatial movement
+- **Operating model** forward projection with Pella-Tomlinson dynamics (Pella and Tomlinson 1969) and spatial movement (Turchin 1998)
 - **Observation error** simulation calibrated from fitted model residuals
 - **Implementation error** (catch vs TAC) with lognormal errors and temporal autocorrelation
 - **Harvest control rules**: constant F, constant catch, hockey-stick
@@ -77,7 +77,7 @@ compare_scenarios(result, "mean_catch", "Pr(B<20%B0)_ever")
 
 | Module                | Description                                                           |
 | --------------------- | --------------------------------------------------------------------- |
-| Operating Model       | Forward projection with Pella-Tomlinson dynamics and spatial movement |
+| Operating Model       | Forward projection with Pella-Tomlinson dynamics (Pella and Tomlinson 1969) and spatial movement (Turchin 1998) |
 | Observation Error     | Future CPUE simulation calibrated from historical residuals           |
 | Implementation Error  | Stochastic catch realisation from TAC advice                          |
 | Harvest Control Rules | Predefined and custom HCR functions                                   |

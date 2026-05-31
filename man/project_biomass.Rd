@@ -61,6 +61,12 @@ where \eqn{K} is the gravity movement kernel.
 Biomass is floored at a small positive value (0.01) to prevent
 numerical issues.
 }
+\references{
+Pella, J. J.; Tomlinson, P. K. (1969). A generalised stock production model. Inter-American Tropical Tuna Commission Bulletin 13, 419-496.
+
+Turchin, P. (1998). Quantitative Analysis of Movement: Measuring and Modelling Population Redistribution in Animals and Plants. Sinauer Associates, Sunderland, MA.
+}
+
 \examples{
 \dontrun{
 cfg <- om_config(
