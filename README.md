@@ -1,12 +1,5 @@
 # SurplusProductionModelMSE: Management Strategy Evaluation
 
-<!-- badges: start -->
-
-[![R-CMD-check](https://github.com/alistairdunn1/SurplusProductionModelMSE/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/alistairdunn1/SurplusProductionModelMSE/actions/workflows/R-CMD-check.yaml)
-[![test-coverage](https://github.com/alistairdunn1/SurplusProductionModelMSE/actions/workflows/test-coverage.yaml/badge.svg)](https://github.com/alistairdunn1/SurplusProductionModelMSE/actions/workflows/test-coverage.yaml)
-
-<!-- badges: end -->
-
 ## Overview
 
 **SurplusProductionModelMSE** provides a closed-loop Management Strategy Evaluation framework. It uses the [SurplusProductionModel](https://github.com/alistairdunn1/SurplusProductionModel) package as the assessment engine and supports:
