@@ -70,6 +70,10 @@ build_movement_kernel <- function(distance_matrix,
 #' @param process_noise Logical. Whether to add stochastic process noise.
 #'   Default \code{TRUE} if \code{sigma_process} is present in
 #'   \code{true_params}.
+#' @param process_state Optional previous process-error state for AR1 noise.
+#'   Use \code{NULL} for iid process error or the initial step in a series.
+#' @param return_process_state Logical. If \code{TRUE}, return both biomass
+#'   and the updated process-error state.
 #' @param seed Integer random seed, or \code{NULL}.
 #'
 #' @return A numeric vector of biomass per area at \eqn{t + 1}.
@@ -117,6 +121,8 @@ project_biomass <- function(biomass,
                             om_config,
                             movement_kernel = NULL,
                             process_noise = NULL,
+                            process_state = NULL,
+                            return_process_state = FALSE,
                             seed = NULL) {
   if (!inherits(om_config, "om_config")) {
     stop("om_config must be an 'om_config' object", call. = FALSE)
@@ -159,12 +165,22 @@ project_biomass <- function(biomass,
 
   # Process noise
   sigma_p <- if (!is.null(tp$sigma_process)) tp$sigma_process else 0
+  process_error_structure <- tolower(as.character(tp$process_error_structure %||% "iid"))
+  rho_process <- if (!is.null(tp$rho) && is.finite(tp$rho)) tp$rho else 0
   if (is.null(process_noise)) {
     process_noise <- sigma_p > 0
   }
 
+  process_state_out <- rep(0, n_areas)
   if (process_noise && sigma_p > 0) {
-    eps <- rnorm(n_areas, mean = 0, sd = sigma_p)
+    if (identical(process_error_structure, "ar1")) {
+      prev_eps <- if (is.null(process_state)) rep(0, n_areas) else rep_len(as.numeric(process_state), n_areas)
+      innovation_sd <- sigma_p * sqrt(max(0, 1 - rho_process^2))
+      eps <- rho_process * prev_eps + rnorm(n_areas, mean = 0, sd = innovation_sd)
+    } else {
+      eps <- rnorm(n_areas, mean = 0, sd = sigma_p)
+    }
+    process_state_out <- eps
     # Bias-corrected lognormal noise on positive biomass
     B_positive <- pmax(B_new, 1e-8)
     B_new <- B_positive * exp(eps - sigma_p^2 / 2)
@@ -195,7 +211,11 @@ project_biomass <- function(biomass,
   # Final floor
   B_new <- pmax(B_new, 0.01)
 
-  B_new
+  if (isTRUE(return_process_state)) {
+    list(biomass = B_new, process_state = process_state_out)
+  } else {
+    B_new
+  }
 }
 
 
@@ -286,15 +306,20 @@ project_trajectory <- function(B0,
   # Trajectory matrix: (n_years + 1) rows x n_areas cols
   traj <- matrix(NA_real_, nrow = n_years + 1, ncol = n_areas)
   traj[1, ] <- B0
+  process_state <- rep(0, n_areas)
 
   for (t in seq_len(n_years)) {
-    traj[t + 1, ] <- project_biomass(
+    step <- project_biomass(
       biomass = traj[t, ],
       catch = catch_mat[t, ],
       om_config = om_config,
       movement_kernel = movement_kernel,
-      process_noise = process_noise
+      process_noise = process_noise,
+      process_state = process_state,
+      return_process_state = TRUE
     )
+    traj[t + 1, ] <- step$biomass
+    process_state <- step$process_state
   }
 
   if (n_areas == 1) {

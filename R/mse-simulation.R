@@ -181,7 +181,14 @@ mse_simulation <- function(operating_model,
 
   for (s in seq_along(scenarios)) {
     scenario <- scenarios[[s]]
-    if (verbose) message("Running scenario: ", scenario$name)
+    if (verbose) {
+      cat(
+        "Running scenario ", s, " of ", length(scenarios),
+        ": ", scenario$name, "\n",
+        sep = ""
+      )
+      flush.console()
+    }
 
     seed_offset <- (s - 1L) * n_sims
 
@@ -217,7 +224,25 @@ mse_simulation <- function(operating_model,
       if (parallel) {
         message("future.apply not available; running sequentially")
       }
-      sim_results <- lapply(seq_len(n_sims), sim_fn)
+      if (verbose) {
+        sim_results <- vector("list", n_sims)
+        progress_every <- max(1L, floor(n_sims / 20L))
+        for (i in seq_len(n_sims)) {
+          if (i == 1L || i == n_sims || (i %% progress_every) == 0L) {
+            pct_done <- round(100 * i / n_sims, 1)
+            cat(
+              "  Simulation ", i, " of ", n_sims,
+              " (", pct_done, "%)",
+              " [", scenario$name, "]\n",
+              sep = ""
+            )
+            flush.console()
+          }
+          sim_results[[i]] <- sim_fn(i)
+        }
+      } else {
+        sim_results <- lapply(seq_len(n_sims), sim_fn)
+      }
     }
 
     # --- Combine into trajectory arrays ---
@@ -332,7 +357,11 @@ mse_simulation <- function(operating_model,
       {
         fit <- fit_pella_tomlinson_model(
           data,
-          options = list(silent = TRUE, validate_data = FALSE)
+          options = list(
+            silent = TRUE,
+            validate_data = FALSE,
+            show_starting_values_message = FALSE
+          )
         )
 
         if (!fit$fitted) {
@@ -376,6 +405,7 @@ mse_simulation <- function(operating_model,
   # State
   biomass <- B0
   impl_eps <- rep(0, n_areas)
+  process_state <- rep(0, n_areas)
 
   # Storage
   biomass_store <- matrix(NA_real_, n_proj_years, n_areas)
@@ -391,6 +421,71 @@ mse_simulation <- function(operating_model,
   current_tac <- initial_tac
   last_em_result <- NULL
   assess_freq <- scenario$assessment_frequency
+
+  # Optional fixed catch-allocation weights by area.
+  # If omitted, catch is allocated by current biomass share.
+  alloc_weights <- NULL
+  if (!is.null(scenario$catch_allocation)) {
+    alloc_raw <- scenario$catch_allocation
+
+    if (length(alloc_raw) != n_areas) {
+      stop(
+        "scenario$catch_allocation length (", length(alloc_raw),
+        ") must equal n_areas (", n_areas, ")",
+        call. = FALSE
+      )
+    }
+
+    area_names <- NULL
+    if (!is.null(names(tp$B0)) && length(tp$B0) == n_areas) {
+      area_names <- names(tp$B0)
+    } else if (!is.null(om_config$distance_matrix) &&
+      !is.null(rownames(om_config$distance_matrix)) &&
+      nrow(om_config$distance_matrix) == n_areas) {
+      area_names <- rownames(om_config$distance_matrix)
+    } else if (!is.null(names(tp$q)) && length(tp$q) == n_areas) {
+      area_names <- names(tp$q)
+    }
+
+    if (n_areas > 1) {
+      nm <- names(alloc_raw)
+      if (is.null(nm) || any(!nzchar(nm))) {
+        stop(
+          "scenario$catch_allocation must be a named vector for multi-area OMs",
+          call. = FALSE
+        )
+      }
+      if (is.null(area_names) || any(!nzchar(area_names))) {
+        stop(
+          "Could not determine OM area names to align catch_allocation",
+          call. = FALSE
+        )
+      }
+
+      missing_names <- setdiff(area_names, nm)
+      extra_names <- setdiff(nm, area_names)
+      if (length(missing_names) > 0 || length(extra_names) > 0) {
+        stop(
+          "scenario$catch_allocation names must match OM areas exactly. Missing: ",
+          paste(missing_names, collapse = ", "),
+          "; Extra: ",
+          paste(extra_names, collapse = ", "),
+          call. = FALSE
+        )
+      }
+
+      alloc_weights <- as.numeric(alloc_raw[area_names])
+    } else {
+      alloc_weights <- as.numeric(alloc_raw)
+    }
+
+    if (sum(alloc_weights) <= 0 || any(!is.finite(alloc_weights))) {
+      stop("scenario$catch_allocation must contain finite non-negative values with positive sum",
+        call. = FALSE
+      )
+    }
+    alloc_weights <- alloc_weights / sum(alloc_weights)
+  }
 
   # q for aggregate CPUE simulation
   q_agg <- if (length(tp$q) > 1) mean(tp$q) else tp$q
@@ -429,7 +524,11 @@ mse_simulation <- function(operating_model,
 
     # 2. Implementation error → realized catch
     if (n_areas > 1) {
-      tac_area <- current_tac * (biomass / pmax(sum(biomass), 1e-8))
+      if (!is.null(alloc_weights)) {
+        tac_area <- current_tac * alloc_weights
+      } else {
+        tac_area <- current_tac * (biomass / pmax(sum(biomass), 1e-8))
+      }
     } else {
       tac_area <- current_tac
     }
@@ -455,9 +554,16 @@ mse_simulation <- function(operating_model,
     )
 
     # 4. Project biomass forward
-    biomass <- project_biomass(
-      biomass, catch, om_config, movement_kernel
+    step <- project_biomass(
+      biomass,
+      catch,
+      om_config,
+      movement_kernel,
+      process_state = process_state,
+      return_process_state = TRUE
     )
+    biomass <- step$biomass
+    process_state <- step$process_state
   }
 
   # Derived: harvest rate

@@ -176,7 +176,7 @@ validate_mse_scenario <- function(x) {
 
   required <- c(
     "name", "harvest_control_rule", "implementation_error",
-    "assessment_frequency"
+    "assessment_frequency", "catch_allocation"
   )
   missing_fields <- setdiff(required, names(x))
   if (length(missing_fields) > 0) {
@@ -210,6 +210,34 @@ validate_mse_scenario <- function(x) {
     positive = TRUE,
     .var.name = "assessment_frequency"
   )
+
+  if (!is.null(x$catch_allocation)) {
+    assert_numeric(
+      x$catch_allocation,
+      lower = 0,
+      any.missing = FALSE,
+      min.len = 1,
+      .var.name = "catch_allocation"
+    )
+    if (sum(x$catch_allocation) <= 0) {
+      stop("catch_allocation must contain at least one positive value",
+        call. = FALSE
+      )
+    }
+
+    if (length(x$catch_allocation) > 1) {
+      nm <- names(x$catch_allocation)
+      if (is.null(nm) || any(!nzchar(nm))) {
+        stop(
+          "For multi-area use, catch_allocation must be a named vector",
+          call. = FALSE
+        )
+      }
+      if (anyDuplicated(nm) > 0) {
+        stop("catch_allocation names must be unique", call. = FALSE)
+      }
+    }
+  }
 
   invisible(TRUE)
 }

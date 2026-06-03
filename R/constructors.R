@@ -245,6 +245,11 @@ print.impl_error <- function(x, ...) {
 #'   \code{NULL} for perfect implementation (catch == TAC).
 #' @param assessment_frequency Integer >= 1. Years between assessments
 #'   (default 1 = annual).
+#' @param catch_allocation Optional numeric vector of non-negative area weights
+#'   used to split TAC across operating-model areas. If \code{NULL} (default),
+#'   TAC is allocated in proportion to current biomass in each area. For
+#'   multi-area operating models, provide this as a named vector so weights
+#'   can be matched to area names.
 #'
 #' @return An S3 object of class \code{mse_scenario}.
 #'
@@ -265,13 +270,15 @@ print.impl_error <- function(x, ...) {
 create_scenario <- function(name,
                             harvest_control_rule,
                             implementation_error = NULL,
-                            assessment_frequency = 1L) {
+                            assessment_frequency = 1L,
+                            catch_allocation = NULL) {
   obj <- structure(
     list(
       name                 = name,
       harvest_control_rule = harvest_control_rule,
       implementation_error = implementation_error,
-      assessment_frequency = as.integer(assessment_frequency)
+      assessment_frequency = as.integer(assessment_frequency),
+      catch_allocation     = catch_allocation
     ),
     class = "mse_scenario"
   )
@@ -297,5 +304,14 @@ print.mse_scenario <- function(x, ...) {
     "  Assessment frequency: ", x$assessment_frequency,
     if (x$assessment_frequency == 1) "year" else "years", "\n"
   )
+  if (!is.null(x$catch_allocation)) {
+    cat(
+      "  Catch allocation:     ",
+      paste(round(x$catch_allocation, 4), collapse = ", "),
+      "\n"
+    )
+  } else {
+    cat("  Catch allocation:      biomass-proportional\n")
+  }
   invisible(x)
 }
