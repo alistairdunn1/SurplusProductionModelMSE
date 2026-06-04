@@ -62,7 +62,7 @@ validate_om_config <- function(x) {
   # true_params
   if (!is.null(x$true_params)) {
     assert_list(x$true_params, .var.name = "true_params")
-    required_params <- c("r", "K", "m", "sigma_obs", "q", "B0")
+    required_params <- c("r", "K", "m", "sigma_obs", "q", "B_initial")
     missing_params <- setdiff(required_params, names(x$true_params))
     if (length(missing_params) > 0) {
       stop("true_params missing: ", paste(missing_params, collapse = ", "),
@@ -86,14 +86,14 @@ validate_om_config <- function(x) {
       lower = .Machine$double.eps,
       .var.name = "true_params$sigma_obs"
     )
-    # q and B0 can be scalar or per-area vector
+    # q and B_initial can be scalar or per-area vector
     assert_numeric(tp$q,
       lower = .Machine$double.eps, any.missing = FALSE,
       min.len = 1, max.len = na, .var.name = "true_params$q"
     )
-    assert_numeric(tp$B0,
+    assert_numeric(tp$B_initial,
       lower = .Machine$double.eps, any.missing = FALSE,
-      min.len = 1, max.len = na, .var.name = "true_params$B0"
+      min.len = 1, max.len = na, .var.name = "true_params$B_initial"
     )
   }
 

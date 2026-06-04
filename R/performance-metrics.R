@@ -15,23 +15,24 @@
 #' @param r Numeric scalar. Intrinsic growth rate.
 #' @param K Numeric scalar. Carrying capacity.
 #' @param m Numeric scalar. Shape parameter.
-#' @param B0 Numeric scalar. Unfished biomass. Default \code{K}.
+#' @param B_unfished Numeric scalar. Unfished biomass (= K for the
+#'   Pella-Tomlinson model). Default \code{K}.
 #'
 #' @return Named numeric vector of equilibrium F values. At equilibrium
 #'   \eqn{F \cdot B = P(B)}, so \eqn{F = P(B) / B = r (1 - (B/K)^{m-1}) / m}.
 #'
 #' @details
 #' The equilibrium depletion F is:
-#' \deqn{F_{x} = \frac{r \left(1 - (x B_0 / K)^{m-1}\right)}{m}}
+#' \deqn{F_{x} = \frac{r \left(1 - (x B_\mathrm{unfished} / K)^{m-1}\right)}{m}}
 #'
-#' Returns 0 when \eqn{x B_0 \geq K} (no production surplus).
+#' Returns 0 when \eqn{x B_\mathrm{unfished} \geq K} (no production surplus).
 #'
 #' @examples
 #' # F that produces 50% depletion under Schaefer model
 #' equilibrium_f(0.5, r = 0.3, K = 5000, m = 2)
 #'
 #' @export
-equilibrium_f <- function(x, r, K, m, B0 = K) {
+equilibrium_f <- function(x, r, K, m, B_unfished = K) {
   assert_numeric(x,
     lower = 0, upper = 1, any.missing = FALSE,
     .var.name = "x"
@@ -39,9 +40,9 @@ equilibrium_f <- function(x, r, K, m, B0 = K) {
   assert_number(r, lower = 0)
   assert_number(K, lower = 0)
   assert_number(m, lower = 0)
-  assert_number(B0, lower = 0)
+  assert_number(B_unfished, lower = 0)
 
-  B_target <- x * B0
+  B_target <- x * B_unfished
   f_eq <- ifelse(
     B_target >= K,
     0,
@@ -138,8 +139,14 @@ calculate_performance_metrics <- function(trajectories,
   r <- tp$r
   K <- tp$K
   m <- tp$m
-  B0_total <- sum(rep_len(tp$B0, n_areas))
-  B0_area <- rep_len(tp$B0, n_areas)
+
+  # Depletion reference: the Pella-Tomlinson unfished equilibrium is B = K.
+  # B0_total = K (aggregate unfished biomass).
+  # Per-area unfished biomass = K * (initial-area share), consistent with
+  # how project_biomass distributes K across areas as K * B0[a] / sum(B0).
+  B0_area_init <- rep_len(tp$B_initial, n_areas)
+  B0_total <- K
+  B0_area  <- K * (B0_area_init / sum(B0_area_init))
 
   # BMSY and FMSY from Pella-Tomlinson:
   # BMSY = K * (1/m)^(1/(m-1))   [for m != 1]
@@ -155,8 +162,9 @@ calculate_performance_metrics <- function(trajectories,
   }
   MSY <- FMSY * BMSY
 
-  # F thresholds: equilibrium F at each depletion level
-  f_thresholds <- equilibrium_f(thresholds, r = r, K = K, m = m, B0 = B0_total)
+  # F thresholds: equilibrium F at each depletion level.
+  # With B0_total = K, these are fractions of the unfished state.
+  f_thresholds <- equilibrium_f(thresholds, r = r, K = K, m = m, B_unfished = B0_total)
 
   # --- Aggregate biomass/catch/F: sum across areas ---
   biomass_agg <- apply(biomass, c(1, 2), sum) # [n_sims x n_years]
@@ -247,8 +255,9 @@ calculate_performance_metrics <- function(trajectories,
       catch_stats = catch_stats,
       biomass_ratios = biomass_ratios,
       reference = list(
-        B0           = B0_total,
-        B0_area      = B0_area,
+        B0           = B0_total,   # unfished biomass (= K); used as depletion denominator
+        B0_area      = B0_area,    # per-area unfished biomass
+        B0_initial   = sum(B0_area_init),  # initial (possibly depleted) biomass
         K            = K,
         BMSY         = BMSY,
         FMSY         = FMSY,

@@ -78,7 +78,7 @@
 #'   n_areas = 1,
 #'   true_params = list(
 #'     r = 0.3, K = 5000, m = 2,
-#'     sigma_obs = 0.2, q = 1e-4, B0 = 5000
+#'     sigma_obs = 0.2, q = 1e-4, B_initial = 5000
 #'   )
 #' )
 #' sc <- create_scenario("constant_f", hcr_constant_f(0.05))
@@ -451,12 +451,13 @@ mse_simulation <- function(operating_model,
                             tp) {
   if (!is.null(sim_seed)) set.seed(sim_seed)
 
-  B0 <- rep_len(tp$B0, n_areas)
+  B_initial <- rep_len(tp$B_initial, n_areas)
 
   # State
-  biomass <- B0
+  biomass <- B_initial
   impl_eps <- rep(0, n_areas)
   process_state <- rep(0, n_areas)
+  obs_eps <- NULL  # AR(1) observation-error state; NULL triggers stationary initialisation
 
   # Storage
   biomass_store <- matrix(NA_real_, n_proj_years, n_areas)
@@ -488,8 +489,8 @@ mse_simulation <- function(operating_model,
     }
 
     area_names <- NULL
-    if (!is.null(names(tp$B0)) && length(tp$B0) == n_areas) {
-      area_names <- names(tp$B0)
+    if (!is.null(names(tp$B_initial)) && length(tp$B_initial) == n_areas) {
+      area_names <- names(tp$B_initial)
     } else if (!is.null(om_config$movement_cost_matrix) &&
       !is.null(rownames(om_config$movement_cost_matrix)) &&
       nrow(om_config$movement_cost_matrix) == n_areas) {
@@ -538,8 +539,7 @@ mse_simulation <- function(operating_model,
     alloc_weights <- alloc_weights / sum(alloc_weights)
   }
 
-  # q for aggregate CPUE simulation
-  q_agg <- if (length(tp$q) > 1) mean(tp$q) else tp$q
+  q_vec <- rep_len(as.numeric(tp$q), n_areas)
 
   for (yr in seq_len(n_proj_years)) {
     # Record true biomass
@@ -591,14 +591,24 @@ mse_simulation <- function(operating_model,
     impl_eps <- impl_result$eps
     catch_store[yr, ] <- catch
 
-    # 3. Generate CPUE observation from total biomass (pre-fishing)
-    cpue_yr <- simulate_cpue(
-      true_biomass = sum(biomass),
-      obs_error_params = obs_error_params,
-      q = q_agg,
-      years = as.integer(yr)
+    # 3. Generate CPUE observation from total biomass (pre-fishing).
+    # Catchability is biomass-weighted across areas so that spatial
+    # redistribution of the stock correctly modulates the CPUE signal.
+    b_total <- sum(biomass)
+    q_agg <- if (n_areas > 1) {
+      sum(q_vec * biomass) / pmax(b_total, 1e-8)
+    } else {
+      q_vec[[1L]]
+    }
+    cpue_step <- .simulate_cpue_step(
+      true_biomass_total = b_total,
+      obs_error_params   = obs_error_params,
+      q                  = q_agg,
+      year               = yr,
+      previous_eps       = obs_eps
     )
-    cpue_history <- rbind(cpue_history, cpue_yr[, c("year", "cpue")])
+    obs_eps <- cpue_step$eps
+    cpue_history <- rbind(cpue_history, cpue_step$cpue_row)
     catch_history <- rbind(
       catch_history,
       data.frame(year = as.integer(yr), catch = sum(catch))

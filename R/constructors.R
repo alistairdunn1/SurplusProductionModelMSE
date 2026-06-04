@@ -18,8 +18,8 @@
 #' @param decay Numeric >= 0. Distance decay parameter for the gravity movement
 #'   kernel (default 0).
 #' @param true_params Named list of true parameter values containing at minimum
-#'   \code{r}, \code{K}, \code{m}, \code{sigma_obs}, \code{q}, \code{B0}.
-#'   \code{q} and \code{B0} may be scalar or per-area vectors. If \code{NULL},
+#'   \code{r}, \code{K}, \code{m}, \code{sigma_obs}, \code{q}, \code{B_initial}.
+#'   \code{q} and \code{B_initial} may be scalar or per-area vectors. If \code{NULL},
 #'   parameters must be supplied separately.
 #'
 #' @return An S3 object of class \code{om_config}.
@@ -29,7 +29,7 @@
 #' om <- om_config(
 #'   true_params = list(
 #'     r = 0.3, K = 5000, m = 2,
-#'     sigma_obs = 0.2, q = 1e-4, B0 = 4000
+#'     sigma_obs = 0.2, q = 1e-4, B_initial = 4000
 #'   )
 #' )
 #'
@@ -43,7 +43,7 @@
 #'   true_params = list(
 #'     r = 0.3, K = 5000, m = 2,
 #'     sigma_obs = 0.2, q = rep(1e-4, 3),
-#'     B0 = c(2000, 2500, 1500)
+#'     B_initial = c(2000, 2500, 1500)
 #'   )
 #' )
 #'
@@ -94,7 +94,7 @@ print.om_config <- function(x, ...) {
     cat("    r =", tp$r, " K =", tp$K, " m =", tp$m, "\n")
     cat("    sigma_obs =", tp$sigma_obs, "\n")
     cat("    q =", paste(signif(tp$q, 4), collapse = ", "), "\n")
-    cat("    B0 =", paste(round(tp$B0, 1), collapse = ", "), "\n")
+    cat("    B_initial =", paste(round(tp$B_initial, 1), collapse = ", "), "\n")
   } else {
     cat("  True parameters: not specified\n")
   }

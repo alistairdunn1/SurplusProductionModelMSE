@@ -143,10 +143,10 @@ project_biomass <- function(biomass,
   K <- tp$K
   m <- tp$m
 
-  # Distribute K across areas proportional to B0
-  B0 <- rep_len(tp$B0, n_areas)
+  # Distribute K across areas in proportion to the initial biomass shares.
+  B_initial <- rep_len(tp$B_initial, n_areas)
   if (n_areas > 1) {
-    K_area <- K * (B0 / sum(B0))
+    K_area <- K * (B_initial / sum(B_initial))
   } else {
     K_area <- K
   }
@@ -223,7 +223,7 @@ project_biomass <- function(biomass,
 #'
 #' Run a multi-year forward projection of the operating model.
 #'
-#' @param B0 Numeric scalar or vector. Initial biomass per area.
+#' @param B_initial Numeric scalar or vector. Initial biomass per area.
 #' @param catch_series Numeric vector or matrix. Catch time series. If a
 #'   vector, used for all areas (single-area) or recycled. If a matrix,
 #'   rows are years and columns are areas.
@@ -244,7 +244,7 @@ project_biomass <- function(biomass,
 #'   n_areas = 1,
 #'   true_params = list(
 #'     r = 0.3, K = 5000, m = 2,
-#'     sigma_obs = 0.2, q = 1e-4, B0 = 5000
+#'     sigma_obs = 0.2, q = 1e-4, B_initial = 5000
 #'   )
 #' )
 #' catches <- rep(200, 10)
@@ -252,7 +252,7 @@ project_biomass <- function(biomass,
 #' }
 #'
 #' @export
-project_trajectory <- function(B0,
+project_trajectory <- function(B_initial,
                                catch_series,
                                om_config,
                                n_years = NULL,
@@ -265,7 +265,7 @@ project_trajectory <- function(B0,
   if (!is.null(seed)) set.seed(seed)
 
   n_areas <- om_config$n_areas
-  B0 <- rep_len(as.numeric(B0), n_areas)
+  B_initial <- rep_len(as.numeric(B_initial), n_areas)
 
 
   # Coerce catch to matrix [n_years x n_areas]
@@ -305,7 +305,7 @@ project_trajectory <- function(B0,
 
   # Trajectory matrix: (n_years + 1) rows x n_areas cols
   traj <- matrix(NA_real_, nrow = n_years + 1, ncol = n_areas)
-  traj[1, ] <- B0
+  traj[1, ] <- B_initial
   process_state <- rep(0, n_areas)
 
   for (t in seq_len(n_years)) {

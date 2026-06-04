@@ -229,21 +229,23 @@ simulate_cpue <- function(true_biomass,
   }
 
   # Build output data frame
-  out_list <- vector("list", n_labels)
+  out_list <- vector("list", n_labels * n_areas)
+  out_idx  <- 0L
 
   for (il in seq_len(n_labels)) {
     sigma <- sigma_vec[il]
     rho <- rho_vec[il]
 
     for (ia in seq_len(n_areas)) {
-      # Generate AR(1) residuals
+      # Generate AR(1) residuals.
+      # Year 1 is drawn from the stationary distribution N(0, sigma^2);
+      # subsequent years follow the AR(1) recurrence.
       eps <- numeric(n_years)
       innovation_sd <- sigma * sqrt(max(0, 1 - rho^2))
-      eta <- rnorm(n_years, mean = 0, sd = innovation_sd)
-      eps[1] <- eta[1]
+      eps[1] <- rnorm(1L, mean = 0, sd = sigma)
       if (n_years > 1) {
         for (t in 2:n_years) {
-          eps[t] <- rho * eps[t - 1] + eta[t]
+          eps[t] <- rho * eps[t - 1] + rnorm(1L, mean = 0, sd = innovation_sd)
         }
       }
 
@@ -269,7 +271,8 @@ simulate_cpue <- function(true_biomass,
         df_chunk$label <- labels_vec[il]
       }
 
-      out_list[[length(out_list) + 1]] <- df_chunk
+      out_idx <- out_idx + 1L
+      out_list[[out_idx]] <- df_chunk
     }
   }
 
@@ -278,4 +281,52 @@ simulate_cpue <- function(true_biomass,
   result <- result[!is.na(result$cpue), , drop = FALSE]
   rownames(result) <- NULL
   result
+}
+
+
+#' Generate a single-year CPUE observation with AR(1) state
+#'
+#' Called by the MSE closed-loop to generate one observation per year while
+#' propagating the observation-error AR(1) state across years.
+#'
+#' @param true_biomass_total Numeric scalar. Aggregate (sum across areas) true
+#'   biomass before fishing in the current year.
+#' @param obs_error_params An \code{obs_error_params} object.
+#' @param q Numeric scalar. Effective catchability coefficient.
+#' @param year Integer. Simulation year (stored in the returned data frame).
+#' @param previous_eps Numeric scalar. AR(1) state from the previous year, or
+#'   \code{NULL} for the first call (draws from the stationary distribution).
+#'
+#' @return A list with:
+#'   \describe{
+#'     \item{cpue_row}{Single-row data frame with columns \code{year} and
+#'       \code{cpue}.}
+#'     \item{eps}{Updated AR(1) state to pass as \code{previous_eps} next year.}
+#'   }
+#'
+#' @noRd
+.simulate_cpue_step <- function(true_biomass_total, obs_error_params, q,
+                                year, previous_eps = NULL) {
+  sigma <- as.numeric(obs_error_params$sigma[[1]])
+  rho   <- as.numeric(obs_error_params$rho[[1]])
+
+  if (is.null(previous_eps)) {
+    # Initialise from the stationary marginal distribution N(0, sigma^2).
+    eps_new <- rnorm(1L, mean = 0, sd = sigma)
+  } else {
+    innovation_sd <- sigma * sqrt(max(0, 1 - rho^2))
+    eps_new <- rho * as.numeric(previous_eps) +
+      rnorm(1L, mean = 0, sd = innovation_sd)
+  }
+
+  cpue_val <- q * true_biomass_total * exp(eps_new - sigma^2 / 2)
+
+  list(
+    cpue_row = data.frame(
+      year = as.integer(year),
+      cpue = cpue_val,
+      stringsAsFactors = FALSE
+    ),
+    eps = eps_new
+  )
 }

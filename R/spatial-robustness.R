@@ -42,7 +42,7 @@
 #'   n_areas = 1,
 #'   true_params = list(
 #'     r = 0.3, K = 5000, m = 2,
-#'     sigma_obs = 0.2, q = 1e-4, B0 = 5000
+#'     sigma_obs = 0.2, q = 1e-4, B_initial = 5000
 #'   )
 #' )
 #' s1 <- create_scenario("low_f", hcr_constant_f(0.03))
@@ -158,7 +158,7 @@ compare_scenarios <- function(mse_results,
 #'   n_areas = 1,
 #'   true_params = list(
 #'     r = 0.3, K = 5000, m = 2,
-#'     sigma_obs = 0.2, q = 1e-4, B0 = 5000
+#'     sigma_obs = 0.2, q = 1e-4, B_initial = 5000
 #'   )
 #' )
 #' st <- run_self_test(om, hcr_constant_f(0.05), n_sims = 10, seed = 1)
@@ -194,13 +194,15 @@ run_self_test <- function(operating_model,
 
   traj <- res$results$self_test$trajectories
 
-  # Check biomass conservation at initialisation
-  B0_total <- sum(rep_len(
-    operating_model$true_params$B0,
+  # Check biomass conservation at initialisation: year-1 biomass must equal the
+  # initial conditions (sum of tp$B_initial, which may differ from K if the stock is
+  # not unfished at the start of the projection).
+  b_initial_total <- sum(rep_len(
+    operating_model$true_params$B_initial,
     operating_model$n_areas
   ))
   total_b_yr1 <- apply(traj$biomass[, 1, , drop = FALSE], 1, sum)
-  biomass_conserved <- all(abs(total_b_yr1 - B0_total) < 1e-6)
+  biomass_conserved <- all(abs(total_b_yr1 - b_initial_total) < 1e-6)
 
   # Check positive biomass
   positive_biomass <- all(traj$biomass > 0)
