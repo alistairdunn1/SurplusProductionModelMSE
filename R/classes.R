@@ -14,7 +14,7 @@ validate_om_config <- function(x) {
   }
 
   required <- c(
-    "n_areas", "movement_rate", "distance_matrix",
+    "n_areas", "movement_rate", "movement_cost_matrix",
     "attractiveness", "decay", "true_params"
   )
   missing_fields <- setdiff(required, names(x))
@@ -33,24 +33,21 @@ validate_om_config <- function(x) {
 
   na <- x$n_areas
 
-  # distance_matrix
+  # movement_cost_matrix
 
-  if (!is.null(x$distance_matrix)) {
-    if (!is.matrix(x$distance_matrix) ||
-      nrow(x$distance_matrix) != na ||
-      ncol(x$distance_matrix) != na) {
-      stop("distance_matrix must be a ", na, " x ", na, " matrix",
+  if (!is.null(x$movement_cost_matrix)) {
+    if (!is.matrix(x$movement_cost_matrix) ||
+      nrow(x$movement_cost_matrix) != na ||
+      ncol(x$movement_cost_matrix) != na) {
+      stop("movement_cost_matrix must be a ", na, " x ", na, " matrix",
         call. = FALSE
       )
     }
-    if (!isSymmetric(unname(x$distance_matrix))) {
-      stop("distance_matrix must be symmetric", call. = FALSE)
+    if (any(diag(x$movement_cost_matrix) != 0)) {
+      stop("movement_cost_matrix diagonal must be zero", call. = FALSE)
     }
-    if (any(diag(x$distance_matrix) != 0)) {
-      stop("distance_matrix diagonal must be zero", call. = FALSE)
-    }
-    if (any(x$distance_matrix < 0)) {
-      stop("distance_matrix must contain non-negative values", call. = FALSE)
+    if (any(x$movement_cost_matrix < 0)) {
+      stop("movement_cost_matrix must contain non-negative values", call. = FALSE)
     }
   }
 
@@ -116,7 +113,7 @@ validate_em_config <- function(x) {
 
   required <- c(
     "n_areas", "estimate_movement", "aggregate_areas",
-    "fixed_params"
+    "process_noise", "process_error_structure", "fixed_params"
   )
   missing_fields <- setdiff(required, names(x))
   if (length(missing_fields) > 0) {
@@ -128,6 +125,16 @@ validate_em_config <- function(x) {
   assert_count(x$n_areas, positive = TRUE, .var.name = "n_areas")
   assert_flag(x$estimate_movement, .var.name = "estimate_movement")
   assert_flag(x$aggregate_areas, .var.name = "aggregate_areas")
+  assert_flag(x$process_noise, .var.name = "process_noise")
+  assert_character(
+    x$process_error_structure,
+    len = 1,
+    any.missing = FALSE,
+    .var.name = "process_error_structure"
+  )
+  if (!x$process_error_structure %in% c("iid", "ar1")) {
+    stop("process_error_structure must be one of: iid, ar1", call. = FALSE)
+  }
 
   if (!is.null(x$fixed_params)) {
     assert_list(x$fixed_params, names = "named", .var.name = "fixed_params")

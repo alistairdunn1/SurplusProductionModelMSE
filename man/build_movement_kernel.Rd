@@ -4,11 +4,11 @@
 \alias{build_movement_kernel}
 \title{Build Gravity Movement Kernel}
 \usage{
-build_movement_kernel(distance_matrix, attractiveness = NULL, decay = 0)
+build_movement_kernel(movement_cost_matrix, attractiveness = NULL, decay = 0)
 }
 \arguments{
-\item{distance_matrix}{Numeric matrix \eqn{[n \times n]}. Pairwise
-distances between areas. Must be symmetric with zero diagonal.}
+\item{movement_cost_matrix}{Numeric matrix \eqn{[n \times n]}. Pairwise
+movement costs between areas. Diagonal must be zero.}
 
 \item{attractiveness}{Numeric vector of length \eqn{n}. Habitat quality
 weights per area. Default \code{NULL} uses equal weights.}

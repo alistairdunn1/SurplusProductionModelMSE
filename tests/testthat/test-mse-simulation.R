@@ -19,7 +19,7 @@ make_spatial_om <- function() {
   om_config(
     n_areas = 2L,
     movement_rate = 0.1,
-    distance_matrix = dm,
+    movement_cost_matrix = dm,
     true_params = list(
       r = 0.3, K = 5000, m = 2,
       sigma_obs = 0.2, q = c(1e-4, 1e-4),

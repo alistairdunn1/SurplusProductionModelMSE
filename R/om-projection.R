@@ -9,8 +9,8 @@
 #' Compute a row-normalized transition matrix for spatial biomass
 #' redistribution using a gravity model.
 #'
-#' @param distance_matrix Numeric matrix \eqn{[n \times n]}. Pairwise
-#'   distances between areas. Must be symmetric with zero diagonal.
+#' @param movement_cost_matrix Numeric matrix \eqn{[n \times n]}. Pairwise
+#'   movement costs between areas. Diagonal must be zero.
 #' @param attractiveness Numeric vector of length \eqn{n}. Habitat quality
 #'   weights per area. Default \code{NULL} uses equal weights.
 #' @param decay Numeric scalar \eqn{>= 0}. Distance decay parameter.
@@ -29,10 +29,10 @@
 #' @references Turchin, P. (1998). Quantitative Analysis of Movement: Measuring and Modelling Population Redistribution in Animals and Plants. Sinauer Associates, Sunderland, MA.
 #'
 #' @export
-build_movement_kernel <- function(distance_matrix,
+build_movement_kernel <- function(movement_cost_matrix,
                                   attractiveness = NULL,
                                   decay = 0) {
-  n <- nrow(distance_matrix)
+  n <- nrow(movement_cost_matrix)
   if (is.null(attractiveness)) {
     attractiveness <- rep(1, n)
   }
@@ -41,7 +41,7 @@ build_movement_kernel <- function(distance_matrix,
   W <- matrix(0, n, n)
   for (a in seq_len(n)) {
     for (b in seq_len(n)) {
-      W[a, b] <- attractiveness[b] * exp(-decay * distance_matrix[a, b])
+      W[a, b] <- attractiveness[b] * exp(-decay * movement_cost_matrix[a, b])
     }
   }
 
@@ -192,7 +192,7 @@ project_biomass <- function(biomass,
   # Spatial movement
   if (n_areas > 1 && om_config$movement_rate > 0) {
     if (is.null(movement_kernel)) {
-      dm <- om_config$distance_matrix
+      dm <- om_config$movement_cost_matrix
       if (is.null(dm)) {
         dm <- matrix(1, n_areas, n_areas)
         diag(dm) <- 0
@@ -293,7 +293,7 @@ project_trajectory <- function(B0,
   # Pre-compute movement kernel
   movement_kernel <- NULL
   if (n_areas > 1 && om_config$movement_rate > 0) {
-    dm <- om_config$distance_matrix
+    dm <- om_config$movement_cost_matrix
     if (is.null(dm)) {
       dm <- matrix(1, n_areas, n_areas)
       diag(dm) <- 0

@@ -25,7 +25,7 @@ make_spatial_config <- function(n_areas = 3, r = 0.3, K = 15000, m = 2,
   om_config(
     n_areas = n_areas,
     movement_rate = movement_rate,
-    distance_matrix = dm,
+    movement_cost_matrix = dm,
     attractiveness = attract,
     decay = decay,
     true_params = params

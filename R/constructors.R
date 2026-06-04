@@ -11,7 +11,7 @@
 #' @param n_areas Integer >= 1. Number of spatial areas (default 1 = non-spatial).
 #' @param movement_rate Numeric in \[0, 1\]. Fraction of biomass redistributed per
 #'   time step (default 0 = no movement).
-#' @param distance_matrix Square symmetric matrix of inter-area distances (km),
+#' @param movement_cost_matrix Square matrix of inter-area movement costs,
 #'   or \code{NULL} for single area. Diagonal must be zero.
 #' @param attractiveness Numeric vector of length \code{n_areas} giving habitat
 #'   quality weights, or \code{NULL} (all areas equal).
@@ -37,7 +37,7 @@
 #' om3 <- om_config(
 #'   n_areas = 3,
 #'   movement_rate = 0.1,
-#'   distance_matrix = matrix(c(0, 100, 200, 100, 0, 100, 200, 100, 0), 3, 3),
+#'   movement_cost_matrix = matrix(c(0, 100, 200, 100, 0, 100, 200, 100, 0), 3, 3),
 #'   attractiveness = c(1, 1.2, 0.8),
 #'   decay = 0.01,
 #'   true_params = list(
@@ -50,7 +50,7 @@
 #' @export
 om_config <- function(n_areas = 1L,
                       movement_rate = 0,
-                      distance_matrix = NULL,
+                      movement_cost_matrix = NULL,
                       attractiveness = NULL,
                       decay = 0,
                       true_params = NULL) {
@@ -60,7 +60,7 @@ om_config <- function(n_areas = 1L,
     list(
       n_areas         = as.integer(n_areas),
       movement_rate   = movement_rate,
-      distance_matrix = distance_matrix,
+      movement_cost_matrix = movement_cost_matrix,
       attractiveness  = attractiveness,
       decay           = decay,
       true_params     = true_params
@@ -78,8 +78,8 @@ print.om_config <- function(x, ...) {
   cat("-----------------------------\n")
   cat("  Areas:         ", x$n_areas, "\n")
   cat("  Movement rate: ", x$movement_rate, "\n")
-  if (!is.null(x$distance_matrix)) {
-    cat("  Distance matrix: ", x$n_areas, "x", x$n_areas, " supplied\n")
+  if (!is.null(x$movement_cost_matrix)) {
+    cat("  Movement cost matrix: ", x$n_areas, "x", x$n_areas, " supplied\n")
   }
   if (!is.null(x$attractiveness)) {
     cat(
@@ -116,6 +116,10 @@ print.om_config <- function(x, ...) {
 #'   (default \code{FALSE}).
 #' @param aggregate_areas Logical. If \code{TRUE} and the OM has multiple areas,
 #'   aggregate observed data to a single-area EM input (default \code{FALSE}).
+#' @param process_noise Logical. Whether to include process noise in EM fitting
+#'   (default \code{FALSE}).
+#' @param process_error_structure Character, one of \code{"iid"} or
+#'   \code{"ar1"}. Used when \code{process_noise = TRUE}.
 #' @param fixed_params Named list of parameters to fix (not estimate) in the EM.
 #'   For example, \code{list(m = 2)} to fix the Schaefer shape. \code{NULL}
 #'   means all parameters are estimated.
@@ -133,15 +137,24 @@ print.om_config <- function(x, ...) {
 em_config <- function(n_areas = 1L,
                       estimate_movement = FALSE,
                       aggregate_areas = FALSE,
+                      process_noise = FALSE,
+                      process_error_structure = "iid",
                       fixed_params = NULL) {
   assert_count(n_areas, positive = TRUE, .var.name = "n_areas")
+  assert_flag(process_noise, .var.name = "process_noise")
+  process_error_structure <- match.arg(
+    tolower(as.character(process_error_structure)),
+    c("iid", "ar1")
+  )
 
   obj <- structure(
     list(
-      n_areas           = as.integer(n_areas),
+      n_areas = as.integer(n_areas),
       estimate_movement = estimate_movement,
-      aggregate_areas   = aggregate_areas,
-      fixed_params      = fixed_params
+      aggregate_areas = aggregate_areas,
+      process_noise = process_noise,
+      process_error_structure = process_error_structure,
+      fixed_params = fixed_params
     ),
     class = "em_config"
   )
@@ -157,6 +170,8 @@ print.em_config <- function(x, ...) {
   cat("  Areas:             ", x$n_areas, "\n")
   cat("  Estimate movement: ", x$estimate_movement, "\n")
   cat("  Aggregate areas:   ", x$aggregate_areas, "\n")
+  cat("  Process noise:     ", x$process_noise, "\n")
+  cat("  Process structure: ", x$process_error_structure, "\n")
   if (!is.null(x$fixed_params)) {
     cat(
       "  Fixed parameters:  ",

@@ -155,7 +155,7 @@ mse_simulation <- function(operating_model,
   # --- Pre-compute movement kernel ---
   movement_kernel <- NULL
   if (n_areas > 1 && operating_model$movement_rate > 0) {
-    dm <- operating_model$distance_matrix
+    dm <- operating_model$movement_cost_matrix
     if (is.null(dm)) {
       dm <- matrix(1, n_areas, n_areas)
       diag(dm) <- 0
@@ -340,6 +340,44 @@ mse_simulation <- function(operating_model,
 }
 
 
+#' Normalise EM fixed parameters for SurplusProductionModel fitting
+#'
+#' Converts natural-scale parameter names (for example, m = 2) to the
+#' log-scale names expected by fit_pella_tomlinson_model options.
+#' @noRd
+.normalise_em_fixed_params <- function(fixed_params) {
+  if (is.null(fixed_params) || length(fixed_params) == 0) {
+    return(NULL)
+  }
+
+  out <- list()
+  for (nm in names(fixed_params)) {
+    if (!nzchar(nm)) next
+
+    val <- fixed_params[[nm]]
+    if (!is.numeric(val) || length(val) != 1 || !is.finite(val)) {
+      stop("All fixed_params values must be finite numeric scalars", call. = FALSE)
+    }
+
+    if (grepl("^log_", nm)) {
+      out[[nm]] <- as.numeric(val)
+      next
+    }
+
+    # Core SPM parameters are estimated on the log scale.
+    if (val <= 0) {
+      stop("Natural-scale fixed parameter values must be positive", call. = FALSE)
+    }
+    out[[paste0("log_", nm)]] <- log(as.numeric(val))
+  }
+
+  if (length(out) == 0) {
+    return(NULL)
+  }
+  out
+}
+
+
 #' Safely fit the estimation model
 #'
 #' Wraps \code{fit_pella_tomlinson_model} in tryCatch so convergence
@@ -352,16 +390,29 @@ mse_simulation <- function(operating_model,
     catch_data = catch_history
   )
 
+  fit_options <- list(
+    silent = TRUE,
+    validate_data = FALSE,
+    show_starting_values_message = FALSE
+  )
+
+  if (!is.null(em_config)) {
+    fit_options$process_noise <- isTRUE(em_config$process_noise)
+    fit_options$process_error_structure <-
+      tolower(as.character(em_config$process_error_structure %||% "iid"))
+
+    fixed_params <- .normalise_em_fixed_params(em_config$fixed_params)
+    if (!is.null(fixed_params)) {
+      fit_options$fixed_params <- fixed_params
+    }
+  }
+
   tryCatch(
     withCallingHandlers(
       {
         fit <- fit_pella_tomlinson_model(
           data,
-          options = list(
-            silent = TRUE,
-            validate_data = FALSE,
-            show_starting_values_message = FALSE
-          )
+          options = fit_options
         )
 
         if (!fit$fitted) {
@@ -439,10 +490,10 @@ mse_simulation <- function(operating_model,
     area_names <- NULL
     if (!is.null(names(tp$B0)) && length(tp$B0) == n_areas) {
       area_names <- names(tp$B0)
-    } else if (!is.null(om_config$distance_matrix) &&
-      !is.null(rownames(om_config$distance_matrix)) &&
-      nrow(om_config$distance_matrix) == n_areas) {
-      area_names <- rownames(om_config$distance_matrix)
+    } else if (!is.null(om_config$movement_cost_matrix) &&
+      !is.null(rownames(om_config$movement_cost_matrix)) &&
+      nrow(om_config$movement_cost_matrix) == n_areas) {
+      area_names <- rownames(om_config$movement_cost_matrix)
     } else if (!is.null(names(tp$q)) && length(tp$q) == n_areas) {
       area_names <- names(tp$q)
     }

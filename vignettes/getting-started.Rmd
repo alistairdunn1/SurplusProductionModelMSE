@@ -267,7 +267,7 @@ connected via a movement kernel built from a distance matrix:
 om_spatial <- om_config(
   n_areas         = 2L,
   movement_rate   = 0.1,
-  distance_matrix = matrix(c(0, 100, 100, 0), nrow = 2),
+  movement_cost_matrix = matrix(c(0, 100, 100, 0), nrow = 2),
   true_params     = list(
     r = 0.3, K = 5000, m = 2,
     sigma_obs = 0.2, q = 0.001, B0 = 5000
@@ -279,7 +279,7 @@ The movement kernel is computed from the distance matrix:
 
 ```{r movement-kernel}
 kernel <- build_movement_kernel(
-  distance_matrix = matrix(c(0, 100, 100, 0), nrow = 2),
+  movement_cost_matrix = matrix(c(0, 100, 100, 0), nrow = 2),
   decay = 0.01
 )
 print(kernel)

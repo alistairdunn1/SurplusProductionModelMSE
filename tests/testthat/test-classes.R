@@ -14,7 +14,7 @@ test_that("om_config creates valid single-area object", {
   expect_s3_class(om, "om_config")
   expect_equal(om$n_areas, 1L)
   expect_equal(om$movement_rate, 0)
-  expect_null(om$distance_matrix)
+  expect_null(om$movement_cost_matrix)
   expect_null(om$attractiveness)
   expect_equal(om$decay, 0)
   expect_equal(om$true_params$r, 0.3)
@@ -25,7 +25,7 @@ test_that("om_config creates valid multi-area object", {
   om <- om_config(
     n_areas = 3,
     movement_rate = 0.1,
-    distance_matrix = dm,
+    movement_cost_matrix = dm,
     attractiveness = c(1, 1.2, 0.8),
     decay = 0.01,
     true_params = list(
@@ -37,7 +37,7 @@ test_that("om_config creates valid multi-area object", {
   expect_s3_class(om, "om_config")
   expect_equal(om$n_areas, 3L)
   expect_equal(om$movement_rate, 0.1)
-  expect_equal(nrow(om$distance_matrix), 3)
+  expect_equal(nrow(om$movement_cost_matrix), 3)
   expect_length(om$attractiveness, 3)
 })
 
@@ -59,25 +59,26 @@ test_that("om_config rejects invalid movement_rate", {
   expect_error(om_config(movement_rate = 1.5))
 })
 
-test_that("om_config rejects non-symmetric distance_matrix", {
+test_that("om_config allows asymmetric movement_cost_matrix", {
   bad_dm <- matrix(c(0, 100, 200, 50, 0, 100, 200, 100, 0), 3, 3)
-  expect_error(
+  expect_s3_class(
     om_config(
-      n_areas = 3, distance_matrix = bad_dm,
+      n_areas = 3, movement_cost_matrix = bad_dm,
       true_params = list(
         r = 0.3, K = 5000, m = 2,
         sigma_obs = 0.2, q = rep(1e-4, 3),
         B0 = rep(2000, 3)
       )
-    )
+    ),
+    "om_config"
   )
 })
 
-test_that("om_config rejects wrong-sized distance_matrix", {
+test_that("om_config rejects wrong-sized movement_cost_matrix", {
   dm2 <- matrix(c(0, 100, 100, 0), 2, 2)
   expect_error(
     om_config(
-      n_areas = 3, distance_matrix = dm2,
+      n_areas = 3, movement_cost_matrix = dm2,
       true_params = list(
         r = 0.3, K = 5000, m = 2,
         sigma_obs = 0.2, q = rep(1e-4, 3),
@@ -87,11 +88,11 @@ test_that("om_config rejects wrong-sized distance_matrix", {
   )
 })
 
-test_that("om_config rejects distance_matrix with non-zero diagonal", {
+test_that("om_config rejects movement_cost_matrix with non-zero diagonal", {
   bad_dm <- matrix(c(1, 100, 100, 0), 2, 2)
   expect_error(
     om_config(
-      n_areas = 2, distance_matrix = bad_dm,
+      n_areas = 2, movement_cost_matrix = bad_dm,
       true_params = list(
         r = 0.3, K = 5000, m = 2,
         sigma_obs = 0.2, q = rep(1e-4, 2),

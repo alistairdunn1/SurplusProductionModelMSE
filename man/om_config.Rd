@@ -7,7 +7,7 @@
 om_config(
   n_areas = 1L,
   movement_rate = 0,
-  distance_matrix = NULL,
+  movement_cost_matrix = NULL,
   attractiveness = NULL,
   decay = 0,
   true_params = NULL
@@ -19,7 +19,7 @@ om_config(
 \item{movement_rate}{Numeric in [0, 1]. Fraction of biomass redistributed per
 time step (default 0 = no movement).}
 
-\item{distance_matrix}{Square symmetric matrix of inter-area distances (km),
+\item{movement_cost_matrix}{Square matrix of inter-area movement costs,
 or \code{NULL} for single area. Diagonal must be zero.}
 
 \item{attractiveness}{Numeric vector of length \code{n_areas} giving habitat
@@ -53,7 +53,7 @@ om <- om_config(
 om3 <- om_config(
   n_areas = 3,
   movement_rate = 0.1,
-  distance_matrix = matrix(c(0, 100, 200, 100, 0, 100, 200, 100, 0), 3, 3),
+  movement_cost_matrix = matrix(c(0, 100, 200, 100, 0, 100, 200, 100, 0), 3, 3),
   attractiveness = c(1, 1.2, 0.8),
   decay = 0.01,
   true_params = list(
