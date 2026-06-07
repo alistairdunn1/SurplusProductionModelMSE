@@ -8,7 +8,8 @@ create_scenario(
   name,
   harvest_control_rule,
   implementation_error = NULL,
-  assessment_frequency = 1L
+  assessment_frequency = 1L,
+  catch_allocation = NULL
 )
 }
 \arguments{
@@ -22,6 +23,12 @@ create_scenario(
 
 \item{assessment_frequency}{Integer >= 1. Years between assessments
 (default 1 = annual).}
+
+\item{catch_allocation}{Optional numeric vector of non-negative area weights
+used to split TAC across operating-model areas. If \code{NULL} (default),
+TAC is allocated in proportion to current biomass in each area. For
+multi-area operating models, provide this as a named vector so weights
+can be matched to area names.}
 }
 \value{
 An S3 object of class \code{mse_scenario}.

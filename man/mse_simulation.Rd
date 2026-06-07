@@ -11,7 +11,7 @@ mse_simulation(
   n_sims = 100L,
   n_proj_years = 20L,
   obs_error_params = NULL,
-  initial_tac = NULL,
+  initial_tac,
   min_assess_years = 5L,
   parallel = FALSE,
   seed = NULL,
@@ -39,7 +39,7 @@ construct from \code{operating_model$true_params$sigma_obs}
 with zero autocorrelation.}
 
 \item{initial_tac}{Numeric scalar. TAC used before the first
-assessment. If \code{NULL} (default), the true MSY is used.}
+assessment. This must be supplied explicitly by the caller.}
 
 \item{min_assess_years}{Integer. Minimum number of accumulated
 data years before the first EM fit (default 5).}
@@ -102,13 +102,13 @@ om <- om_config(
   n_areas = 1,
   true_params = list(
     r = 0.3, K = 5000, m = 2,
-    sigma_obs = 0.2, q = 1e-4, B0 = 5000
+    sigma_obs = 0.2, q = 1e-4, B_initial = 5000
   )
 )
 sc <- create_scenario("constant_f", hcr_constant_f(0.05))
 res <- mse_simulation(om,
   scenarios = sc, n_sims = 10,
-  n_proj_years = 15, seed = 42
+  n_proj_years = 15, initial_tac = 0, seed = 42
 )
 res
 }

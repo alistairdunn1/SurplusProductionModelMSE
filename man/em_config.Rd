@@ -8,6 +8,8 @@ em_config(
   n_areas = 1L,
   estimate_movement = FALSE,
   aggregate_areas = FALSE,
+  process_noise = FALSE,
+  process_error_structure = "iid",
   fixed_params = NULL
 )
 }
@@ -20,6 +22,12 @@ differ from the operating model for misspecification testing.}
 
 \item{aggregate_areas}{Logical. If \code{TRUE} and the OM has multiple areas,
 aggregate observed data to a single-area EM input (default \code{FALSE}).}
+
+\item{process_noise}{Logical. Whether to include process noise in EM fitting
+(default \code{FALSE}).}
+
+\item{process_error_structure}{Character, one of \code{"iid"} or
+\code{"ar1"}. Used when \code{process_noise = TRUE}.}
 
 \item{fixed_params}{Named list of parameters to fix (not estimate) in the EM.
 For example, \code{list(m = 2)} to fix the Schaefer shape. \code{NULL}

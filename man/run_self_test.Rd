@@ -7,10 +7,10 @@
 run_self_test(
   operating_model,
   harvest_control_rule,
+  initial_tac,
   n_sims = 20L,
   n_proj_years = 20L,
-  seed = NULL,
-  ...
+  seed = NULL
 )
 }
 \arguments{
@@ -20,14 +20,13 @@ run_self_test(
 \item{harvest_control_rule}{A harvest control rule function (from
 \code{\link{hcr_constant_f}} or similar).}
 
+\item{initial_tac}{Numeric scalar. TAC used before the first assessment.}
+
 \item{n_sims}{Integer. Number of replicates (default 20).}
 
 \item{n_proj_years}{Integer. Projection years (default 20).}
 
 \item{seed}{Integer random seed, or \code{NULL}.}
-
-\item{...}{Additional arguments passed to
-\code{\link{mse_simulation}}.}
 }
 \value{
 An S3 object of class \code{self_test_result} containing:
@@ -63,10 +62,10 @@ om <- om_config(
   n_areas = 1,
   true_params = list(
     r = 0.3, K = 5000, m = 2,
-    sigma_obs = 0.2, q = 1e-4, B0 = 5000
+    sigma_obs = 0.2, q = 1e-4, B_initial = 5000
   )
 )
-st <- run_self_test(om, hcr_constant_f(0.05), n_sims = 10, seed = 1)
+st <- run_self_test(om, hcr_constant_f(0.05), initial_tac = 0, n_sims = 10, seed = 1)
 st
 }
 

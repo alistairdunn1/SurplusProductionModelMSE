@@ -48,14 +48,14 @@ om <- om_config(
   n_areas = 1,
   true_params = list(
     r = 0.3, K = 5000, m = 2,
-    sigma_obs = 0.2, q = 1e-4, B0 = 5000
+    sigma_obs = 0.2, q = 1e-4, B_initial = 5000
   )
 )
 s1 <- create_scenario("low_f", hcr_constant_f(0.03))
 s2 <- create_scenario("high_f", hcr_constant_f(0.10))
 res <- mse_simulation(om,
   scenarios = list(s1, s2),
-  n_sims = 20, n_proj_years = 15, seed = 1
+  n_sims = 20, n_proj_years = 15, initial_tac = 0, seed = 1
 )
 compare_scenarios(res, "mean_catch", "Pr(B<20\%B0)_final")
 }

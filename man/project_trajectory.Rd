@@ -5,7 +5,7 @@
 \title{Project Biomass Trajectory}
 \usage{
 project_trajectory(
-  B0,
+  B_initial,
   catch_series,
   om_config,
   n_years = NULL,
@@ -14,7 +14,7 @@ project_trajectory(
 )
 }
 \arguments{
-\item{B0}{Numeric scalar or vector. Initial biomass per area.}
+\item{B_initial}{Numeric scalar or vector. Initial biomass per area.}
 
 \item{catch_series}{Numeric vector or matrix. Catch time series. If a
 vector, used for all areas (single-area) or recycled. If a matrix,
@@ -44,7 +44,7 @@ cfg <- om_config(
   n_areas = 1,
   true_params = list(
     r = 0.3, K = 5000, m = 2,
-    sigma_obs = 0.2, q = 1e-4, B0 = 5000
+    sigma_obs = 0.2, q = 1e-4, B_initial = 5000
   )
 )
 catches <- rep(200, 10)

@@ -10,6 +10,8 @@ project_biomass(
   om_config,
   movement_kernel = NULL,
   process_noise = NULL,
+  process_state = NULL,
+  return_process_state = FALSE,
   seed = NULL
 )
 }
@@ -29,6 +31,12 @@ population parameters.}
 \item{process_noise}{Logical. Whether to add stochastic process noise.
 Default \code{TRUE} if \code{sigma_process} is present in
 \code{true_params}.}
+
+\item{process_state}{Optional previous process-error state for AR1 noise.
+Use \code{NULL} for iid process error or the initial step in a series.}
+
+\item{return_process_state}{Logical. If \code{TRUE}, return both biomass
+and the updated process-error state.}
 
 \item{seed}{Integer random seed, or \code{NULL}.}
 }
@@ -57,16 +65,7 @@ where \eqn{\varepsilon_a \sim N(0, \sigma_p^2)}.
 Spatial redistribution (when \code{movement_rate > 0}):
 \deqn{B'_a = (1 - \rho) \cdot B_a + \rho \cdot \sum_b K_{ab} \cdot B_b}
 where \eqn{K} is the gravity movement kernel.
-
-Biomass is floored at a small positive value (0.01) to prevent
-numerical issues.
 }
-\references{
-Pella, J. J.; Tomlinson, P. K. (1969). A generalised stock production model. Inter-American Tropical Tuna Commission Bulletin 13, 419-496.
-
-Turchin, P. (1998). Quantitative Analysis of Movement: Measuring and Modelling Population Redistribution in Animals and Plants. Sinauer Associates, Sunderland, MA.
-}
-
 \examples{
 \dontrun{
 cfg <- om_config(
@@ -79,4 +78,12 @@ cfg <- om_config(
 B1 <- project_biomass(5000, 200, cfg, seed = 1)
 }
 
+}
+\references{
+Pella, J. J.; Tomlinson, P. K. (1969). A generalised stock production model. Inter-American Tropical Tuna Commission Bulletin 13, 419-496.
+
+Turchin, P. (1998). Quantitative Analysis of Movement: Measuring and Modelling Population Redistribution in Animals and Plants. Sinauer Associates, Sunderland, MA.
+
+Biomass is floored at a small positive value (0.01) to prevent
+numerical issues.
 }

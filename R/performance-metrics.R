@@ -74,6 +74,8 @@ equilibrium_f <- function(x, r, K, m, B_unfished = K) {
 #'   \code{true_params} set (needed for reference points).
 #' @param thresholds Numeric vector of depletion thresholds for risk
 #'   metrics, as fractions of \code{B0}. Default \code{c(0.5, 0.2)}.
+#' @param start_year Integer scalar. First projection year to include in
+#'   performance summaries.
 #'
 #' @return An object of class \code{mse_performance} containing:
 #'   \describe{
@@ -99,7 +101,8 @@ equilibrium_f <- function(x, r, K, m, B_unfished = K) {
 #' @export
 calculate_performance_metrics <- function(trajectories,
                                           om_config,
-                                          thresholds = c(0.5, 0.2)) {
+                                          thresholds = c(0.5, 0.2),
+                                          start_year = 1L) {
   assert_list(trajectories, .var.name = "trajectories")
   if (is.null(trajectories$biomass)) {
     stop("trajectories must contain a 'biomass' element", call. = FALSE)
@@ -119,6 +122,7 @@ calculate_performance_metrics <- function(trajectories,
     lower = 0, upper = 1, any.missing = FALSE,
     min.len = 1, .var.name = "thresholds"
   )
+  assert_count(start_year, positive = TRUE, .var.name = "start_year")
 
   # --- Coerce inputs to 3D: [n_sims x n_years x n_areas] ---
   biomass <- .to_3d(trajectories$biomass)
@@ -128,25 +132,35 @@ calculate_performance_metrics <- function(trajectories,
   n_years <- dim(biomass)[2]
   n_areas <- dim(biomass)[3]
 
+  start_year <- as.integer(start_year)
+  if (start_year > n_years) {
+    stop("start_year must be less than or equal to the number of projected years", call. = FALSE)
+  }
+  eval_index <- seq.int(from = start_year, to = n_years)
+  biomass <- biomass[, eval_index, , drop = FALSE]
+  catch <- catch[, eval_index, , drop = FALSE]
+
   # Harvest rate: use provided or compute
   if (!is.null(trajectories$harvest_rate)) {
     harvest_rate <- .to_3d(trajectories$harvest_rate)
+    harvest_rate <- harvest_rate[, eval_index, , drop = FALSE]
   } else {
     harvest_rate <- catch / pmax(biomass, 1e-8)
   }
+
+  n_years <- dim(biomass)[2]
 
   # --- Reference points ---
   r <- tp$r
   K <- tp$K
   m <- tp$m
 
-  # Depletion reference: the Pella-Tomlinson unfished equilibrium is B = K.
-  # B0_total = K (aggregate unfished biomass).
-  # Per-area unfished biomass = K * (initial-area share), consistent with
-  # how project_biomass distributes K across areas as K * B0[a] / sum(B0).
+  # Status reference uses the start-of-evaluation biomass baseline.
+  # This aligns status metrics with the equilibrium spin-up endpoint
+  # (when the OM initial state has been re-anchored accordingly).
   B0_area_init <- rep_len(tp$B_initial, n_areas)
-  B0_total <- K
-  B0_area  <- K * (B0_area_init / sum(B0_area_init))
+  B0_total <- sum(B0_area_init)
+  B0_area <- B0_area_init
 
   # BMSY and FMSY from Pella-Tomlinson:
   # BMSY = K * (1/m)^(1/(m-1))   [for m != 1]
@@ -162,8 +176,8 @@ calculate_performance_metrics <- function(trajectories,
   }
   MSY <- FMSY * BMSY
 
-  # F thresholds: equilibrium F at each depletion level.
-  # With B0_total = K, these are fractions of the unfished state.
+  # F thresholds: equilibrium F at each depletion level, using the
+  # status baseline biomass reference.
   f_thresholds <- equilibrium_f(thresholds, r = r, K = K, m = m, B_unfished = B0_total)
 
   # --- Aggregate biomass/catch/F: sum across areas ---
@@ -232,17 +246,23 @@ calculate_performance_metrics <- function(trajectories,
     aggregate = list(
       mean_depletion  = mean(depletion_agg),
       mean_b_bmsy     = mean(b_bmsy_agg),
-      final_depletion = mean(depletion_agg[, n_years]),
-      final_b_bmsy    = mean(b_bmsy_agg[, n_years])
+      final_depletion = mean(depletion_agg[, n_years, drop = FALSE]),
+      final_b_bmsy    = mean(b_bmsy_agg[, n_years, drop = FALSE])
     ),
     by_area = lapply(seq_len(n_areas), function(a) {
-      dep_a <- biomass[, , a] / B0_area[a]
-      bb_a <- biomass[, , a] / (BMSY * B0_area[a] / B0_total)
+      # Extract area, ensuring we get a [n_sims x n_years] matrix
+      biomass_a <- biomass[, , a, drop = TRUE]
+      if (!is.matrix(biomass_a) && length(biomass_a) > 0) {
+        biomass_a <- matrix(biomass_a, nrow = 1)
+      }
+
+      dep_a <- biomass_a / B0_area[a]
+      bb_a <- biomass_a / (BMSY * B0_area[a] / B0_total)
       list(
-        mean_depletion  = mean(dep_a),
-        mean_b_bmsy     = mean(bb_a),
-        final_depletion = mean(dep_a[, n_years]),
-        final_b_bmsy    = mean(bb_a[, n_years])
+        mean_depletion  = mean(dep_a, na.rm = TRUE),
+        mean_b_bmsy     = mean(bb_a, na.rm = TRUE),
+        final_depletion = mean(dep_a[, n_years, drop = FALSE], na.rm = TRUE),
+        final_b_bmsy    = mean(bb_a[, n_years, drop = FALSE], na.rm = TRUE)
       )
     })
   )
@@ -255,9 +275,9 @@ calculate_performance_metrics <- function(trajectories,
       catch_stats = catch_stats,
       biomass_ratios = biomass_ratios,
       reference = list(
-        B0           = B0_total,   # unfished biomass (= K); used as depletion denominator
-        B0_area      = B0_area,    # per-area unfished biomass
-        B0_initial   = sum(B0_area_init),  # initial (possibly depleted) biomass
+        B0           = B0_total, # status baseline biomass denominator
+        B0_area      = B0_area, # per-area status baseline biomass
+        B0_initial   = sum(B0_area_init), # OM initial biomass baseline
         K            = K,
         BMSY         = BMSY,
         FMSY         = FMSY,
@@ -299,10 +319,24 @@ calculate_performance_metrics <- function(trajectories,
 #' @return List with per_year, final_year, ever
 #' @noRd
 .risk_metrics <- function(mat, threshold) {
+  # Ensure mat is a matrix (handle dimension dropping edge cases)
+  if (!is.matrix(mat)) {
+    if (is.numeric(mat) && length(mat) > 0) {
+      mat <- matrix(mat, nrow = 1)
+    } else {
+      stop("Invalid input to .risk_metrics: mat must be a numeric matrix")
+    }
+  }
+
+  # Handle empty matrix
+  if (nrow(mat) == 0 || ncol(mat) == 0) {
+    return(list(per_year = numeric(0), final_year = NA_real_, ever = NA_real_))
+  }
+
   below <- mat < threshold
-  per_year <- colMeans(below) # probability per year
+  per_year <- colMeans(below, na.rm = TRUE) # probability per year
   final_year <- per_year[ncol(mat)] # final year only
-  ever <- mean(apply(below, 1, any)) # prob of ever breaching
+  ever <- mean(apply(below, 1, any, na.rm = TRUE), na.rm = TRUE) # prob of ever breaching
 
   list(per_year = per_year, final_year = final_year, ever = ever)
 }
@@ -314,10 +348,24 @@ calculate_performance_metrics <- function(trajectories,
 #' @return List with per_year, final_year, ever
 #' @noRd
 .risk_metrics_above <- function(mat, threshold) {
+  # Ensure mat is a matrix (handle dimension dropping edge cases)
+  if (!is.matrix(mat)) {
+    if (is.numeric(mat) && length(mat) > 0) {
+      mat <- matrix(mat, nrow = 1)
+    } else {
+      stop("Invalid input to .risk_metrics_above: mat must be a numeric matrix")
+    }
+  }
+
+  # Handle empty matrix
+  if (nrow(mat) == 0 || ncol(mat) == 0) {
+    return(list(per_year = numeric(0), final_year = NA_real_, ever = NA_real_))
+  }
+
   above <- mat > threshold
-  per_year <- colMeans(above)
+  per_year <- colMeans(above, na.rm = TRUE)
   final_year <- per_year[ncol(mat)]
-  ever <- mean(apply(above, 1, any))
+  ever <- mean(apply(above, 1, any, na.rm = TRUE), na.rm = TRUE)
 
   list(per_year = per_year, final_year = final_year, ever = ever)
 }
@@ -326,20 +374,37 @@ calculate_performance_metrics <- function(trajectories,
 #' Compute catch statistics from a \[n_sims x n_years\] matrix
 #' @noRd
 .catch_stats <- function(mat) {
+  # Ensure mat is a matrix (handle dimension dropping edge cases)
+  if (!is.matrix(mat)) {
+    if (is.numeric(mat) && length(mat) > 0) {
+      mat <- matrix(mat, nrow = 1)
+    } else {
+      stop("Invalid input to .catch_stats: mat must be a numeric matrix")
+    }
+  }
+
+  # Handle empty matrix
+  if (nrow(mat) == 0 || ncol(mat) == 0) {
+    return(list(
+      mean_catch = NA_real_, median_catch = NA_real_,
+      sd_catch = NA_real_, aav = NA_real_
+    ))
+  }
+
   # Average Annual Variation: mean(|C_{t+1} - C_t| / C_t) across sims
   n_years <- ncol(mat)
   if (n_years > 1) {
     diffs <- abs(mat[, -1, drop = FALSE] - mat[, -n_years, drop = FALSE])
     denom <- pmax(mat[, -n_years, drop = FALSE], 1e-8)
-    aav <- mean(diffs / denom)
+    aav <- mean(diffs / denom, na.rm = TRUE)
   } else {
     aav <- 0
   }
 
   list(
-    mean_catch   = mean(mat),
-    median_catch = median(mat),
-    sd_catch     = sd(as.vector(mat)),
+    mean_catch   = mean(mat, na.rm = TRUE),
+    median_catch = median(mat, na.rm = TRUE),
+    sd_catch     = sd(as.vector(mat), na.rm = TRUE),
     aav          = aav
   )
 }
@@ -397,8 +462,8 @@ print.mse_performance <- function(x, ...) {
   # Reference points
   ref <- x$reference
   cat(sprintf(
-    "\nReference: B0=%.0f  K=%.0f  BMSY=%.0f  FMSY=%.4f  MSY=%.0f\n",
-    ref$B0, ref$K, ref$BMSY, ref$FMSY, ref$MSY
+    "\nReference: B0=%.0f  BMSY=%.0f  FMSY=%.4f  MSY=%.0f\n",
+    ref$B0, ref$BMSY, ref$FMSY, ref$MSY
   ))
 
   invisible(x)

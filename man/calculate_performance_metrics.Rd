@@ -7,7 +7,8 @@
 calculate_performance_metrics(
   trajectories,
   om_config,
-  thresholds = c(0.5, 0.2)
+  thresholds = c(0.5, 0.2),
+  start_year = 1L
 )
 }
 \arguments{
@@ -27,6 +28,9 @@ Optional elements: \code{harvest_rate} (computed from
 
 \item{thresholds}{Numeric vector of depletion thresholds for risk
 metrics, as fractions of \code{B0}. Default \code{c(0.5, 0.2)}.}
+
+\item{start_year}{Integer scalar. First projection year to include in
+performance summaries.}
 }
 \value{
 An object of class \code{mse_performance} containing:
@@ -42,7 +46,7 @@ structure as \code{biomass_risk}).}
 \item{biomass_ratios}{List with \code{mean_depletion} (B/B0),
 \code{mean_b_bmsy} (B/BMSY), \code{final_depletion},
 \code{final_b_bmsy} (aggregate and per-area).}
-\item{reference}{List of reference values: \code{B0}, \code{K},
+\item{reference}{List of reference values: \code{B0},
 \code{BMSY}, \code{FMSY}, \code{MSY}, \code{thresholds},
 \code{f_thresholds}.}
 \item{n_sims}{Number of simulations.}
@@ -55,4 +59,7 @@ Compute a comprehensive set of performance indicators from simulation
 output, including risk probabilities, catch statistics, and biomass
 ratios. All probability metrics are computed per year, for the final
 year, and as probability of ever breaching the threshold.
+
+The \code{B0} reference used in status metrics is the baseline biomass at
+\code{start_year} (that is, after any excluded burn-in period).
 }

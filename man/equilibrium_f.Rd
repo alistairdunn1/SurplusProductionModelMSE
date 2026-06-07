@@ -4,7 +4,7 @@
 \alias{equilibrium_f}
 \title{Compute Equilibrium F at a Given Depletion Level}
 \usage{
-equilibrium_f(x, r, K, m, B0 = K)
+equilibrium_f(x, r, K, m, B_unfished = K)
 }
 \arguments{
 \item{x}{Numeric scalar or vector. Depletion fraction(s) (e.g. 0.5
@@ -16,7 +16,8 @@ for 50 percent of \code{B0}).}
 
 \item{m}{Numeric scalar. Shape parameter.}
 
-\item{B0}{Numeric scalar. Unfished biomass. Default \code{K}.}
+\item{B_unfished}{Numeric scalar. Unfished biomass (= K for the
+Pella-Tomlinson model). Default \code{K}.}
 }
 \value{
 Named numeric vector of equilibrium F values. At equilibrium
@@ -28,9 +29,9 @@ would produce an equilibrium biomass of \code{x * B0}.
 }
 \details{
 The equilibrium depletion F is:
-\deqn{F_{x} = \frac{r \left(1 - (x B_0 / K)^{m-1}\right)}{m}}
+\deqn{F_{x} = \frac{r \left(1 - (x B_\mathrm{unfished} / K)^{m-1}\right)}{m}}
 
-Returns 0 when \eqn{x B_0 \geq K} (no production surplus).
+Returns 0 when \eqn{x B_\mathrm{unfished} \geq K} (no production surplus).
 }
 \examples{
 # F that produces 50\% depletion under Schaefer model

@@ -49,7 +49,7 @@
 #' s2 <- create_scenario("high_f", hcr_constant_f(0.10))
 #' res <- mse_simulation(om,
 #'   scenarios = list(s1, s2),
-#'   n_sims = 20, n_proj_years = 15, seed = 1
+#'   n_sims = 20, n_proj_years = 15, initial_tac = 0, seed = 1
 #' )
 #' compare_scenarios(res, "mean_catch", "Pr(B<20%B0)_final")
 #' }
@@ -125,11 +125,10 @@ compare_scenarios <- function(mse_results,
 #'   \code{true_params} set.
 #' @param harvest_control_rule A harvest control rule function (from
 #'   \code{\link{hcr_constant_f}} or similar).
+#' @param initial_tac Numeric scalar. TAC used before the first assessment.
 #' @param n_sims Integer. Number of replicates (default 20).
 #' @param n_proj_years Integer. Projection years (default 20).
 #' @param seed Integer random seed, or \code{NULL}.
-#' @param ... Additional arguments passed to
-#'   \code{\link{mse_simulation}}.
 #'
 #' @return An S3 object of class \code{self_test_result} containing:
 #'   \describe{
@@ -161,17 +160,17 @@ compare_scenarios <- function(mse_results,
 #'     sigma_obs = 0.2, q = 1e-4, B_initial = 5000
 #'   )
 #' )
-#' st <- run_self_test(om, hcr_constant_f(0.05), n_sims = 10, seed = 1)
+#' st <- run_self_test(om, hcr_constant_f(0.05), initial_tac = 0, n_sims = 10, seed = 1)
 #' st
 #' }
 #'
 #' @export
 run_self_test <- function(operating_model,
                           harvest_control_rule,
+                          initial_tac,
                           n_sims = 20L,
                           n_proj_years = 20L,
-                          seed = NULL,
-                          ...) {
+                          seed = NULL) {
   if (!inherits(operating_model, "om_config")) {
     stop("operating_model must be an 'om_config' object", call. = FALSE)
   }
@@ -188,8 +187,8 @@ run_self_test <- function(operating_model,
     scenarios        = sc,
     n_sims           = n_sims,
     n_proj_years     = n_proj_years,
+    initial_tac      = initial_tac,
     seed             = seed,
-    ...
   )
 
   traj <- res$results$self_test$trajectories

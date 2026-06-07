@@ -29,8 +29,8 @@ quality weights, or \code{NULL} (all areas equal).}
 kernel (default 0).}
 
 \item{true_params}{Named list of true parameter values containing at minimum
-\code{r}, \code{K}, \code{m}, \code{sigma_obs}, \code{q}, \code{B0}.
-\code{q} and \code{B0} may be scalar or per-area vectors. If \code{NULL},
+\code{r}, \code{K}, \code{m}, \code{sigma_obs}, \code{q}, \code{B_initial}.
+\code{q} and \code{B_initial} may be scalar or per-area vectors. If \code{NULL},
 parameters must be supplied separately.}
 }
 \value{
@@ -45,7 +45,7 @@ dynamics for MSE simulations.
 om <- om_config(
   true_params = list(
     r = 0.3, K = 5000, m = 2,
-    sigma_obs = 0.2, q = 1e-4, B0 = 4000
+    sigma_obs = 0.2, q = 1e-4, B_initial = 4000
   )
 )
 
@@ -59,7 +59,7 @@ om3 <- om_config(
   true_params = list(
     r = 0.3, K = 5000, m = 2,
     sigma_obs = 0.2, q = rep(1e-4, 3),
-    B0 = c(2000, 2500, 1500)
+    B_initial = c(2000, 2500, 1500)
   )
 )
 

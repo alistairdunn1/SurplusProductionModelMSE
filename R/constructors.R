@@ -139,7 +139,11 @@ em_config <- function(n_areas = 1L,
                       aggregate_areas = FALSE,
                       process_noise = FALSE,
                       process_error_structure = "iid",
-                      fixed_params = NULL) {
+                      fixed_params = NULL,
+                      control = NULL,
+                      n_starts = 1L,
+                      calculate_se = FALSE,
+                      priors = NULL) {
   assert_count(n_areas, positive = TRUE, .var.name = "n_areas")
   assert_flag(process_noise, .var.name = "process_noise")
   process_error_structure <- match.arg(
@@ -154,7 +158,11 @@ em_config <- function(n_areas = 1L,
       aggregate_areas = aggregate_areas,
       process_noise = process_noise,
       process_error_structure = process_error_structure,
-      fixed_params = fixed_params
+      fixed_params = fixed_params,
+      control = control,
+      n_starts = as.integer(n_starts),
+      calculate_se = calculate_se,
+      priors = priors
     ),
     class = "em_config"
   )

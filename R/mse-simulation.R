@@ -26,7 +26,7 @@
 #'   construct from \code{operating_model$true_params$sigma_obs}
 #'   with zero autocorrelation.
 #' @param initial_tac Numeric scalar. TAC used before the first
-#'   assessment. If \code{NULL} (default), the true MSY is used.
+#'   assessment. This must be supplied explicitly by the caller.
 #' @param min_assess_years Integer. Minimum number of accumulated
 #'   data years before the first EM fit (default 5).
 #' @param parallel Logical. Use \pkg{future.apply} for parallel
@@ -84,7 +84,7 @@
 #' sc <- create_scenario("constant_f", hcr_constant_f(0.05))
 #' res <- mse_simulation(om,
 #'   scenarios = sc, n_sims = 10,
-#'   n_proj_years = 15, seed = 42
+#'   n_proj_years = 15, initial_tac = 0, seed = 42
 #' )
 #' res
 #' }
@@ -96,7 +96,7 @@ mse_simulation <- function(operating_model,
                            n_sims = 100L,
                            n_proj_years = 20L,
                            obs_error_params = NULL,
-                           initial_tac = NULL,
+                           initial_tac,
                            min_assess_years = 5L,
                            parallel = FALSE,
                            seed = NULL,
@@ -146,9 +146,11 @@ mse_simulation <- function(operating_model,
     obs_error_params <- .make_obs_params(tp)
   }
 
-  # --- Default initial TAC from true MSY ---
-  if (is.null(initial_tac)) {
-    initial_tac <- .compute_true_msy(tp)
+  if (missing(initial_tac) || is.null(initial_tac)) {
+    stop(
+      "initial_tac must be supplied explicitly; no default is applied",
+      call. = FALSE
+    )
   }
   assert_number(initial_tac, lower = 0, .var.name = "initial_tac")
 
@@ -250,8 +252,17 @@ mse_simulation <- function(operating_model,
       sim_results, n_sims, n_proj_years, n_areas
     )
 
+    first_assessment_year <- as.integer(min_assess_years + 1L)
+    while ((first_assessment_year %% scenario$assessment_frequency) != 0L) {
+      first_assessment_year <- first_assessment_year + 1L
+    }
+
     # --- Performance metrics ---
-    perf <- calculate_performance_metrics(trajectories, operating_model)
+    perf <- calculate_performance_metrics(
+      trajectories,
+      operating_model,
+      start_year = first_assessment_year
+    )
 
     results[[scenario$name]] <- list(
       trajectories = trajectories,
@@ -290,23 +301,6 @@ mse_simulation <- function(operating_model,
     ),
     class = "obs_error_params"
   )
-}
-
-
-#' Compute true MSY from Pella-Tomlinson parameters
-#' @noRd
-.compute_true_msy <- function(tp) {
-  r <- tp$r
-  K <- tp$K
-  m <- tp$m
-  if (abs(m - 1) < 1e-10) {
-    fmsy <- r / exp(1)
-    bmsy <- K / exp(1)
-  } else {
-    bmsy <- K * (1 / m)^(1 / (m - 1))
-    fmsy <- r * (1 - 1 / m) / m
-  }
-  fmsy * bmsy
 }
 
 
@@ -405,6 +399,26 @@ mse_simulation <- function(operating_model,
     if (!is.null(fixed_params)) {
       fit_options$fixed_params <- fixed_params
     }
+
+    # Add control options if specified in EM config
+    if (!is.null(em_config$control)) {
+      fit_options$control <- em_config$control
+    }
+
+    # Add n_starts if specified
+    if (!is.null(em_config$n_starts)) {
+      fit_options$n_starts <- em_config$n_starts
+    }
+
+    # Add calculate_se if specified
+    if (!is.null(em_config$calculate_se)) {
+      fit_options$calculate_se <- em_config$calculate_se
+    }
+
+    # Add priors if specified
+    if (!is.null(em_config$priors)) {
+      fit_options$priors <- em_config$priors
+    }
   }
 
   tryCatch(
@@ -427,9 +441,17 @@ mse_simulation <- function(operating_model,
           return(NULL)
         }
 
+        # Extract K - for single-area models it's K.A1, for multi-area it could be K.A1, K.A2, etc.
+        # Sum all K values to get total carrying capacity
+        k_names <- grep("^K\\.", names(fit$parameters), value = TRUE)
+        if (length(k_names) == 0) {
+          return(NULL)
+        }
+        total_K <- sum(fit$parameters[k_names])
+
         list(
           est_biomass = current_b,
-          K           = fit$parameters[["K"]],
+          K           = total_K,
           msy         = ref$msy,
           bmsy        = ref$bmsy,
           fmsy        = ref$fmsy,
@@ -457,7 +479,7 @@ mse_simulation <- function(operating_model,
   biomass <- B_initial
   impl_eps <- rep(0, n_areas)
   process_state <- rep(0, n_areas)
-  obs_eps <- NULL  # AR(1) observation-error state; NULL triggers stationary initialisation
+  obs_eps <- NULL # AR(1) observation-error state; NULL triggers stationary initialisation
 
   # Storage
   biomass_store <- matrix(NA_real_, n_proj_years, n_areas)
