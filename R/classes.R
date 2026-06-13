@@ -78,6 +78,12 @@ validate_om_config <- function(x) {
       lower = .Machine$double.eps,
       .var.name = "true_params$K"
     )
+    if (!is.null(tp$K_area)) {
+      assert_numeric(tp$K_area,
+        lower = .Machine$double.eps, any.missing = FALSE,
+        min.len = 1, max.len = na, .var.name = "true_params$K_area"
+      )
+    }
     assert_number(tp$m,
       lower = .Machine$double.eps,
       .var.name = "true_params$m"

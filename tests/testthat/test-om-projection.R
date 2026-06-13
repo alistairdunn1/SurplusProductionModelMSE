@@ -2,8 +2,8 @@
 
 # --- Helper: create a simple single-area om_config ---
 make_single_config <- function(r = 0.3, K = 5000, m = 2, sigma_process = 0,
-                               sigma_obs = 0.2, q = 1e-4, B0 = 5000) {
-  params <- list(r = r, K = K, m = m, sigma_obs = sigma_obs, q = q, B0 = B0)
+                               sigma_obs = 0.2, q = 1e-4, B_initial = 5000) {
+  params <- list(r = r, K = K, m = m, sigma_obs = sigma_obs, q = q, B_initial = B_initial)
   if (sigma_process > 0) params$sigma_process <- sigma_process
   om_config(n_areas = 1, true_params = params)
 }
@@ -16,10 +16,10 @@ make_spatial_config <- function(n_areas = 3, r = 0.3, K = 15000, m = 2,
     nrow = 3, ncol = 3
   )
   attract <- c(1, 1.5, 0.8)
-  B0 <- c(5000, 5000, 5000)
+  B_initial <- c(5000, 5000, 5000)
   params <- list(
     r = r, K = K, m = m, sigma_obs = 0.2,
-    q = rep(1e-4, n_areas), B0 = B0
+    q = rep(1e-4, n_areas), B_initial = B_initial
   )
   if (sigma_process > 0) params$sigma_process <- sigma_process
   om_config(
@@ -77,24 +77,25 @@ test_that("movement kernel uses default equal attractiveness", {
 # ========================================================================
 
 test_that("project_biomass computes correct Schaefer update", {
-  cfg <- make_single_config(r = 0.3, K = 5000, m = 2, B0 = 5000)
+  cfg <- make_single_config(r = 0.3, K = 5000, m = 2, B_initial = 5000)
   B <- 3000
   C <- 100
-  # Production: 0.3 * 3000 * (1 - (3000/5000)^1) / 2 = 0.3*3000*0.4/2 = 180
+  # Standard PT production: r/(m-1) * B * (1 - (B/K)^(m-1))
+  #   = 0.3/1 * 3000 * (1 - (3000/5000)^1) = 0.3*3000*0.4 = 360
   B_next <- project_biomass(B, C, cfg, process_noise = FALSE)
-  expected <- 3000 + 180 - 100 # 3080
+  expected <- 3000 + 360 - 100 # 3260
   expect_equal(B_next, expected, tolerance = 1e-6)
 })
 
 test_that("project_biomass at K gives zero production (Schaefer)", {
-  cfg <- make_single_config(r = 0.3, K = 5000, m = 2, B0 = 5000)
+  cfg <- make_single_config(r = 0.3, K = 5000, m = 2, B_initial = 5000)
   B_next <- project_biomass(5000, 0, cfg, process_noise = FALSE)
   # P(K) = r*K*(1 - 1)/m = 0, so B_next = K
   expect_equal(B_next, 5000, tolerance = 1e-6)
 })
 
 test_that("project_biomass with zero catch grows toward K", {
-  cfg <- make_single_config(r = 0.3, K = 5000, m = 2, B0 = 2000)
+  cfg <- make_single_config(r = 0.3, K = 5000, m = 2, B_initial = 2000)
   B <- 2000
   B_next <- project_biomass(B, 0, cfg, process_noise = FALSE)
   expect_true(B_next > B)
@@ -102,14 +103,14 @@ test_that("project_biomass with zero catch grows toward K", {
 })
 
 test_that("project_biomass floors biomass at 0.01", {
-  cfg <- make_single_config(r = 0.3, K = 5000, m = 2, B0 = 5000)
+  cfg <- make_single_config(r = 0.3, K = 5000, m = 2, B_initial = 5000)
   # Catch way more than biomass
   B_next <- project_biomass(100, 500, cfg, process_noise = FALSE)
   expect_equal(B_next, 0.01)
 })
 
 test_that("project_biomass with Fox model (m=1)", {
-  cfg <- make_single_config(r = 0.5, K = 10000, m = 1, B0 = 10000)
+  cfg <- make_single_config(r = 0.5, K = 10000, m = 1, B_initial = 10000)
   B <- 5000
   C <- 0
   # Fox: P(B) = r * B * (1 - (B/K)^(m-1)) / m = 0.5 * 5000 * (1 - 1) / 1 = 0
@@ -142,7 +143,7 @@ test_that("project_biomass rejects missing true_params", {
 test_that("process noise adds variability", {
   cfg <- make_single_config(
     r = 0.3, K = 5000, m = 2,
-    sigma_process = 0.2, B0 = 5000
+    sigma_process = 0.2, B_initial = 5000
   )
   results <- replicate(500, {
     project_biomass(3000, 100, cfg)
@@ -157,7 +158,7 @@ test_that("process noise adds variability", {
 test_that("process noise is reproducible with seed", {
   cfg <- make_single_config(
     r = 0.3, K = 5000, m = 2,
-    sigma_process = 0.15, B0 = 5000
+    sigma_process = 0.15, B_initial = 5000
   )
   r1 <- project_biomass(3000, 100, cfg, seed = 42)
   r2 <- project_biomass(3000, 100, cfg, seed = 42)
@@ -167,7 +168,7 @@ test_that("process noise is reproducible with seed", {
 test_that("process_noise = FALSE overrides sigma_process", {
   cfg <- make_single_config(
     r = 0.3, K = 5000, m = 2,
-    sigma_process = 0.5, B0 = 5000
+    sigma_process = 0.5, B_initial = 5000
   )
   r1 <- project_biomass(3000, 100, cfg, process_noise = FALSE)
   r2 <- project_biomass(3000, 100, cfg, process_noise = FALSE)
@@ -175,7 +176,7 @@ test_that("process_noise = FALSE overrides sigma_process", {
 })
 
 test_that("no sigma_process in params means deterministic by default", {
-  cfg <- make_single_config(r = 0.3, K = 5000, m = 2, B0 = 5000)
+  cfg <- make_single_config(r = 0.3, K = 5000, m = 2, B_initial = 5000)
   r1 <- project_biomass(3000, 100, cfg)
   r2 <- project_biomass(3000, 100, cfg)
   expect_identical(r1, r2)
@@ -208,7 +209,7 @@ test_that("zero movement_rate gives same result as single-area", {
 
   # Each area should match independent single-area projection
   # K is distributed proportionally: K_area = 15000 * (5000/15000) = 5000 each
-  cfg1 <- make_single_config(r = 0.3, K = 5000, m = 2, B0 = 5000)
+  cfg1 <- make_single_config(r = 0.3, K = 5000, m = 2, B_initial = 5000)
   B1 <- project_biomass(5000, 100, cfg1, process_noise = FALSE)
   expect_equal(B_new[1], B1, tolerance = 1e-6)
 })
@@ -271,7 +272,7 @@ test_that("project_trajectory is reproducible with seed", {
 })
 
 test_that("project_trajectory with zero catch approaches K", {
-  cfg <- make_single_config(r = 0.3, K = 5000, m = 2, B0 = 2000)
+  cfg <- make_single_config(r = 0.3, K = 5000, m = 2, B_initial = 2000)
   catches <- rep(0, 50)
   traj <- project_trajectory(2000, catches, cfg, process_noise = FALSE)
   # Should approach K = 5000
@@ -291,11 +292,11 @@ test_that("project_trajectory multi-area has correct dimensions", {
 test_that("project_trajectory multi-area matches step-by-step project_biomass", {
   cfg <- make_spatial_config(movement_rate = 0.2)
   catches <- matrix(0, nrow = 5, ncol = 3)
-  B0 <- c(5000, 5000, 5000)
-  traj <- project_trajectory(B0, catches, cfg, process_noise = FALSE)
+  B_initial <- c(5000, 5000, 5000)
+  traj <- project_trajectory(B_initial, catches, cfg, process_noise = FALSE)
 
   # Manual step-by-step
-  B <- B0
+  B <- B_initial
   for (t in 1:5) {
     B <- project_biomass(B, catches[t, ], cfg, process_noise = FALSE)
     expect_equal(unname(traj[t + 1, ]), B, tolerance = 1e-8)
@@ -335,7 +336,7 @@ test_that("project_trajectory column names are set correctly", {
 # ========================================================================
 
 test_that("project_biomass handles biomass above K (negative production)", {
-  cfg <- make_single_config(r = 0.3, K = 5000, m = 2, B0 = 5000)
+  cfg <- make_single_config(r = 0.3, K = 5000, m = 2, B_initial = 5000)
   # Biomass above K
   B_next <- project_biomass(6000, 0, cfg, process_noise = FALSE)
   # Production is negative, biomass should decrease
@@ -343,7 +344,7 @@ test_that("project_biomass handles biomass above K (negative production)", {
 })
 
 test_that("project_biomass handles very small biomass", {
-  cfg <- make_single_config(r = 0.3, K = 5000, m = 2, B0 = 5000)
+  cfg <- make_single_config(r = 0.3, K = 5000, m = 2, B_initial = 5000)
   B_next <- project_biomass(1, 0, cfg, process_noise = FALSE)
   # Should grow from very small biomass
   expect_true(B_next > 1)

@@ -72,23 +72,23 @@ om <- om_config(
     m = 2,           # shape (m=2 is the Schaefer model)
     sigma_obs = 0.2, # observation error SD (log-scale)
     q = 0.001,       # CPUE catchability
-    B0 = 5000        # initial biomass = K (unfished)
+    B_initial = 5000 # initial biomass = K (unfished, d0 = 1)
   )
 )
 
 print(om)
 ```
 
-With the Schaefer model ($m = 2$), biological reference points are:
+With the standard Schaefer model ($m = 2$), biological reference points are:
 
 $$
 B_{\text{MSY}} = \frac{K}{2}, \quad
-F_{\text{MSY}} = \frac{r}{2m} = \frac{r}{4}, \quad
-\text{MSY} = \frac{r K}{8}
+F_{\text{MSY}} = \frac{r}{m} = \frac{r}{2}, \quad
+\text{MSY} = \frac{r K}{4}
 $$
 
-For our parameters: $B_{\text{MSY}}$ = 2500 t, $F_{\text{MSY}}$ = 0.075,
-MSY = 187.5 t.
+For our parameters: $B_{\text{MSY}}$ = 2500 t, $F_{\text{MSY}}$ = 0.15,
+MSY = 375 t.
 
 ### Step 2 — Choose Harvest Control Rules
 
@@ -96,12 +96,12 @@ We compare two management strategies: a constant catch rule and a
 hockey-stick rule that reduces catch when biomass declines.
 
 ```{r define-hcrs}
-# Strategy 1: constant catch at 80% of MSY
-hcr_const <- hcr_constant_catch(catch_target = 150)
+# Strategy 1: constant catch at 80% of MSY (0.8 * 375 = 300)
+hcr_const <- hcr_constant_catch(catch_target = 300)
 
 # Strategy 2: hockey-stick that ramps F down when B < 0.4K
 hcr_hs <- hcr_hockey_stick(
-  f_target = 0.075,   # target F = FMSY
+  f_target = 0.15,    # target F = FMSY = r/m
   b_limit  = 0.20,    # F = 0 below 20% K
   b_target = 0.40     # full F above 40% K
 )
@@ -270,7 +270,8 @@ om_spatial <- om_config(
   movement_cost_matrix = matrix(c(0, 100, 100, 0), nrow = 2),
   true_params     = list(
     r = 0.3, K = 5000, m = 2,
-    sigma_obs = 0.2, q = 0.001, B0 = 5000
+    sigma_obs = 0.2, q = 0.001,
+    B_initial = c(2500, 2500) # per-area initial biomass (totals K)
   )
 )
 ```
@@ -354,26 +355,34 @@ to extract residual-based parameters automatically.
 
 The operating model uses the Pella-Tomlinson surplus production model:
 
-**Production function:**
+**Production function (standard Pella-Tomlinson):**
 
-$$P(B) = \frac{r \, B}{m} \left[ 1 - \left(\frac{B}{K}\right)^{m-1} \right]$$
+$$P(B) = \frac{r \, B}{m - 1} \left[ 1 - \left(\frac{B}{K}\right)^{m-1} \right]$$
+
+where *r* is the intrinsic growth rate (Schaefer form $r\,B\,(1 - B/K)$ at
+$m = 2$; Fox form $r\,B\,\log(K/B)$ as $m \to 1$).
 
 **State equation:**
 
 $$B_{t+1} = B_t + P(B_t) - C_t$$
 
-**For multi-area models**, biomass is redistributed according to a movement
-kernel $\mathbf{M}$ at each time step:
+**For multi-area models**, biomass is redistributed by a row-stochastic
+movement kernel $\mathbf{K}$; arrivals use its transpose so total biomass is
+conserved:
 
-$$\mathbf{B}_{t+1} = \mathbf{M} \cdot \left[ \mathbf{B}_t + P(\mathbf{B}_t) - \mathbf{C}_t \right]$$
+$$\mathbf{B}'_{t+1} = (1 - \rho)\,\mathbf{B}_{t+1} + \rho\,\mathbf{K}^\top \mathbf{B}_{t+1}$$
 
-**Reference points** (Pella-Tomlinson):
+**Reference points** (standard Pella-Tomlinson):
 
 $$
 B_{\text{MSY}} = K \left(\frac{1}{m}\right)^{1/(m-1)}, \quad
-F_{\text{MSY}} = \frac{r(1 - 1/m)}{m}, \quad
+F_{\text{MSY}} = \frac{r}{m}, \quad
 \text{MSY} = F_{\text{MSY}} \times B_{\text{MSY}}
 $$
+
+These are computed by `SurplusProductionModel::pella_tomlinson_reference_points()`,
+shared with the operating model, estimation model, and performance metrics so
+that all components use one consistent set of reference points.
 
 ## Next Steps
 

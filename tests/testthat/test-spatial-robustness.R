@@ -9,7 +9,7 @@ make_simple_om <- function() {
     n_areas = 1L,
     true_params = list(
       r = 0.3, K = 5000, m = 2,
-      sigma_obs = 0.2, q = 1e-4, B0 = 5000
+      sigma_obs = 0.2, q = 1e-4, B_initial = 5000
     )
   )
 }
@@ -23,14 +23,14 @@ make_spatial_om <- function() {
     true_params = list(
       r = 0.3, K = 5000, m = 2,
       sigma_obs = 0.2, q = c(1e-4, 1e-4),
-      B0 = c(3000, 2000)
+      B_initial = c(3000, 2000)
     )
   )
 }
 
 run_quick_mse <- function(om, scenarios, n_sims = 5L, n_proj = 8L,
                           seed = 1, ...) {
-  mse_simulation(
+  mse_simulation(initial_tac = 0, 
     operating_model = om,
     scenarios = scenarios,
     n_sims = n_sims,
@@ -165,7 +165,7 @@ test_that("metric direction: catch and biomass ratios are higher-is-better", {
 
 test_that("run_self_test rejects non-om_config", {
   expect_error(
-    run_self_test("bad", hcr_constant_f(0.05)),
+    run_self_test(initial_tac = 0, "bad", hcr_constant_f(0.05)),
     "om_config"
   )
 })
@@ -173,7 +173,7 @@ test_that("run_self_test rejects non-om_config", {
 test_that("run_self_test rejects non-function HCR", {
   om <- make_simple_om()
   expect_error(
-    run_self_test(om, "not_a_function"),
+    run_self_test(initial_tac = 0, om, "not_a_function"),
     "harvest_control_rule"
   )
 })
@@ -184,7 +184,7 @@ test_that("run_self_test rejects non-function HCR", {
 
 test_that("self-test completes for single-area OM", {
   om <- make_simple_om()
-  st <- run_self_test(om, hcr_constant_f(0.05),
+  st <- run_self_test(initial_tac = 0, om, hcr_constant_f(0.05),
     n_sims = 5L, n_proj_years = 8L, seed = 1,
     min_assess_years = 99L
   )
@@ -193,7 +193,7 @@ test_that("self-test completes for single-area OM", {
 
 test_that("self-test reports biomass conservation", {
   om <- make_simple_om()
-  st <- run_self_test(om, hcr_constant_f(0.05),
+  st <- run_self_test(initial_tac = 0, om, hcr_constant_f(0.05),
     n_sims = 5L, n_proj_years = 8L, seed = 1,
     min_assess_years = 99L
   )
@@ -202,7 +202,7 @@ test_that("self-test reports biomass conservation", {
 
 test_that("self-test reports positive biomass", {
   om <- make_simple_om()
-  st <- run_self_test(om, hcr_constant_f(0.05),
+  st <- run_self_test(initial_tac = 0, om, hcr_constant_f(0.05),
     n_sims = 5L, n_proj_years = 8L, seed = 1,
     min_assess_years = 99L
   )
@@ -211,7 +211,7 @@ test_that("self-test reports positive biomass", {
 
 test_that("self-test summary is a data frame", {
   om <- make_simple_om()
-  st <- run_self_test(om, hcr_constant_f(0.05),
+  st <- run_self_test(initial_tac = 0, om, hcr_constant_f(0.05),
     n_sims = 5L, n_proj_years = 8L, seed = 1,
     min_assess_years = 99L
   )
@@ -222,7 +222,7 @@ test_that("self-test summary is a data frame", {
 
 test_that("self-test contains mse_result", {
   om <- make_simple_om()
-  st <- run_self_test(om, hcr_constant_f(0.05),
+  st <- run_self_test(initial_tac = 0, om, hcr_constant_f(0.05),
     n_sims = 3L, n_proj_years = 5L, seed = 1,
     min_assess_years = 99L
   )
@@ -235,7 +235,7 @@ test_that("self-test contains mse_result", {
 
 test_that("self-test completes for multi-area OM", {
   om <- make_spatial_om()
-  st <- run_self_test(om, hcr_constant_f(0.05),
+  st <- run_self_test(initial_tac = 0, om, hcr_constant_f(0.05),
     n_sims = 3L, n_proj_years = 6L, seed = 1,
     min_assess_years = 99L
   )
@@ -244,11 +244,11 @@ test_that("self-test completes for multi-area OM", {
 
 test_that("self-test biomass conservation for multi-area", {
   om <- make_spatial_om()
-  st <- run_self_test(om, hcr_constant_f(0.05),
+  st <- run_self_test(initial_tac = 0, om, hcr_constant_f(0.05),
     n_sims = 5L, n_proj_years = 6L, seed = 1,
     min_assess_years = 99L
   )
-  # B0 = c(3000, 2000), total = 5000
+  # B_initial = c(3000, 2000), total = 5000
   expect_true(st$biomass_conserved)
 })
 
@@ -256,15 +256,15 @@ test_that("OM conserves total biomass under movement", {
   # With no catch (or minimal), total biomass should be conserved
   # by the movement kernel
   om <- make_spatial_om()
-  B0 <- om$true_params$B0
+  B_initial <- om$true_params$B_initial
   dm <- om$movement_cost_matrix
   kernel <- build_movement_kernel(dm)
 
   # Movement redistributes but conserves total
-  B_new <- project_biomass(B0, c(0, 0), om, kernel,
+  B_new <- project_biomass(B_initial, c(0, 0), om, kernel,
     process_noise = FALSE
   )
-  expect_equal(sum(B_new), sum(B0), tolerance = 1e-6)
+  expect_equal(sum(B_new), sum(B_initial), tolerance = 1e-6)
 })
 
 # ========================================================================
@@ -273,20 +273,20 @@ test_that("OM conserves total biomass under movement", {
 
 test_that("self-test with low F maintains healthy stock", {
   om <- make_simple_om()
-  st <- run_self_test(om, hcr_constant_f(0.02),
+  st <- run_self_test(initial_tac = 0, om, hcr_constant_f(0.02),
     n_sims = 10L, n_proj_years = 10L, seed = 42,
     min_assess_years = 99L
   )
   s <- st$summary
   depletion <- s$value[s$metric == "mean_B_B0" & s$scope == "aggregate"]
-  # Low F should keep stock well above 50% B0
+  # Low F should keep stock well above 50% B_initial
 
   expect_true(depletion > 0.5)
 })
 
 test_that("self-test with high F depletes stock", {
   om <- make_simple_om()
-  st <- run_self_test(om, hcr_constant_f(0.20),
+  st <- run_self_test(initial_tac = 0, om, hcr_constant_f(0.20),
     n_sims = 10L, n_proj_years = 15L, seed = 42,
     min_assess_years = 99L
   )
@@ -302,7 +302,7 @@ test_that("self-test with high F depletes stock", {
 
 test_that("print.self_test_result works", {
   om <- make_simple_om()
-  st <- run_self_test(om, hcr_constant_f(0.05),
+  st <- run_self_test(initial_tac = 0, om, hcr_constant_f(0.05),
     n_sims = 3L, n_proj_years = 5L, seed = 1,
     min_assess_years = 99L
   )
@@ -317,7 +317,7 @@ test_that("print.self_test_result works", {
 
 test_that("compare_scenarios works with self-test result", {
   om <- make_simple_om()
-  st <- run_self_test(om, hcr_constant_f(0.05),
+  st <- run_self_test(initial_tac = 0, om, hcr_constant_f(0.05),
     n_sims = 3L, n_proj_years = 5L, seed = 1,
     min_assess_years = 99L
   )
@@ -360,7 +360,7 @@ test_that("OM/EM configuration: self-test (NULL em) works", {
   om <- make_simple_om()
   # estimation_model = NULL should be accepted
   expect_no_error(
-    mse_simulation(
+    mse_simulation(initial_tac = 0, 
       om,
       estimation_model = NULL,
       scenarios = create_scenario("t", hcr_constant_f(0.05)),
@@ -373,7 +373,7 @@ test_that("OM/EM configuration: explicit em_config works", {
   om <- make_simple_om()
   em <- em_config(n_areas = 1L)
   expect_no_error(
-    mse_simulation(
+    mse_simulation(initial_tac = 0, 
       om,
       estimation_model = em,
       scenarios = create_scenario("t", hcr_constant_f(0.05)),

@@ -1,13 +1,13 @@
 # Tests for performance metrics module (Module 2.4)
 
 # --- Helper: create a simple om_config for metrics ---
-make_metrics_config <- function(r = 0.3, K = 5000, m = 2, B0 = 5000,
+make_metrics_config <- function(r = 0.3, K = 5000, m = 2, B_initial = 5000,
                                 n_areas = 1) {
   om_config(
     n_areas = n_areas,
     true_params = list(
       r = r, K = K, m = m, sigma_obs = 0.2,
-      q = rep(1e-4, n_areas), B0 = rep(B0 / n_areas, n_areas)
+      q = rep(1e-4, n_areas), B_initial = rep(B_initial / n_areas, n_areas)
     )
   )
 }
@@ -15,13 +15,13 @@ make_metrics_config <- function(r = 0.3, K = 5000, m = 2, B0 = 5000,
 # --- Helper: simulate biomass/catch trajectories ---
 # Creates n_sims trajectories with deterministic decline
 make_trajectories <- function(n_sims = 100, n_years = 20,
-                              B0 = 5000, decline_rate = 0.02,
+                              B_initial = 5000, decline_rate = 0.02,
                               catch_frac = 0.05, noise_sd = 0.1) {
   set.seed(42)
   biomass <- matrix(NA, n_sims, n_years)
   catch <- matrix(NA, n_sims, n_years)
   for (s in seq_len(n_sims)) {
-    B <- B0
+    B <- B_initial
     for (t in seq_len(n_years)) {
       B <- B * (1 - decline_rate) * exp(rnorm(1, 0, noise_sd))
       B <- max(B, 1)
@@ -37,19 +37,19 @@ make_trajectories <- function(n_sims = 100, n_years = 20,
 # ========================================================================
 
 test_that("equilibrium_f returns correct Schaefer values", {
-  # Schaefer (m=2): F_eq = r*(1 - (x*B0/K)^(m-1))/m = r*(1-x)/2
+  # Standard PT Schaefer (m=2): F_eq = r/(m-1)*(1-(x*B_initial/K)^(m-1)) = r*(1-x)
   r <- 0.3
   K <- 5000
   m <- 2
 
   f50 <- equilibrium_f(0.5, r, K, m)
-  expect_equal(unname(f50), r * (1 - 0.5) / 2) # 0.075
+  expect_equal(unname(f50), r * (1 - 0.5)) # 0.15
 
   f20 <- equilibrium_f(0.2, r, K, m)
-  expect_equal(unname(f20), r * (1 - 0.2) / 2) # 0.12
+  expect_equal(unname(f20), r * (1 - 0.2)) # 0.24
 })
 
-test_that("equilibrium_f returns 0 when x*B0 >= K", {
+test_that("equilibrium_f returns 0 when x*B_initial >= K", {
   expect_equal(unname(equilibrium_f(1.0, r = 0.3, K = 5000, m = 2)), 0)
 })
 
@@ -58,11 +58,11 @@ test_that("equilibrium_f names output correctly", {
   expect_equal(names(f), c("F50%B0", "F20%B0"))
 })
 
-test_that("equilibrium_f handles B0 != K", {
-  # B0 = 4000, K = 5000, x = 0.5 => B_target = 2000
-  # F = r*(1-(2000/5000)^1)/2 = 0.3*0.6/2 = 0.09
-  f <- equilibrium_f(0.5, r = 0.3, K = 5000, m = 2, B0 = 4000)
-  expect_equal(unname(f), 0.3 * (1 - (2000 / 5000)) / 2, tolerance = 1e-10)
+test_that("equilibrium_f handles B_initial != K", {
+  # B_initial = 4000, K = 5000, x = 0.5 => B_target = 2000
+  # F = r/(m-1)*(1-(2000/5000)^1) = 0.3*0.6 = 0.18
+  f <- equilibrium_f(0.5, r = 0.3, K = 5000, m = 2, B_unfished = 4000)
+  expect_equal(unname(f), 0.3 * (1 - (2000 / 5000)), tolerance = 1e-10)
 })
 
 test_that("equilibrium_f validates inputs", {
@@ -122,8 +122,8 @@ test_that("Pr(B < threshold) per_year has correct length", {
 })
 
 test_that("biomass always above threshold gives zero risk", {
-  cfg <- make_metrics_config(B0 = 5000)
-  # All biomass stays at B0 = 5000, threshold at 50% = 2500
+  cfg <- make_metrics_config(B_initial = 5000)
+  # All biomass stays at B_initial = 5000, threshold at 50% = 2500
   n_sims <- 50
   n_years <- 10
   biomass <- matrix(5000, n_sims, n_years)
@@ -138,10 +138,10 @@ test_that("biomass always above threshold gives zero risk", {
 })
 
 test_that("biomass always below threshold gives risk = 1", {
-  cfg <- make_metrics_config(B0 = 5000)
+  cfg <- make_metrics_config(B_initial = 5000)
   n_sims <- 50
   n_years <- 10
-  # Biomass at 10% of B0 = 500, below both 50% and 20% thresholds
+  # Biomass at 10% of B_initial = 500, below both 50% and 20% thresholds
   biomass <- matrix(500, n_sims, n_years)
   catch <- matrix(10, n_sims, n_years)
   traj <- list(biomass = biomass, catch = catch)
@@ -176,14 +176,14 @@ test_that("F risk uses correct equilibrium threshold", {
   traj <- make_trajectories()
   perf <- calculate_performance_metrics(traj, cfg)
 
-  # F50%B0 for Schaefer = 0.3*(1-0.5)/2 = 0.075
+  # F50%B0 for standard PT Schaefer = 0.3*(1-0.5) = 0.15
   expect_equal(unname(perf$reference$f_thresholds["F50%B0"]),
-    0.075,
+    0.15,
     tolerance = 1e-10
   )
-  # F20%B0 = 0.3*(1-0.2)/2 = 0.12
+  # F20%B0 = 0.3*(1-0.2) = 0.24
   expect_equal(unname(perf$reference$f_thresholds["F20%B0"]),
-    0.12,
+    0.24,
     tolerance = 1e-10
   )
 })
@@ -275,7 +275,7 @@ test_that("AAV increases with catch variability", {
 # ========================================================================
 
 test_that("biomass ratios are correct for known values", {
-  cfg <- make_metrics_config(r = 0.3, K = 5000, m = 2, B0 = 5000)
+  cfg <- make_metrics_config(r = 0.3, K = 5000, m = 2, B_initial = 5000)
   # BMSY for Schaefer = K/2 = 2500
   biomass <- matrix(2500, 50, 10) # exactly at BMSY
   catch <- matrix(0, 50, 10)
@@ -296,10 +296,10 @@ test_that("reference points are correct for Schaefer", {
   perf <- calculate_performance_metrics(traj, cfg)
 
   expect_equal(perf$reference$BMSY, 2500, tolerance = 1e-6)
-  # PT formula: FMSY = r*(1-1/m)/m = 0.3*0.5/2 = 0.075
-  expect_equal(perf$reference$FMSY, 0.075, tolerance = 1e-6)
-  # MSY = FMSY * BMSY = 0.075 * 2500 = 187.5
-  expect_equal(perf$reference$MSY, 187.5, tolerance = 1e-6)
+  # Standard PT: FMSY = r/m = 0.3/2 = 0.15
+  expect_equal(perf$reference$FMSY, 0.15, tolerance = 1e-6)
+  # MSY = FMSY * BMSY = 0.15 * 2500 = 375
+  expect_equal(perf$reference$MSY, 375, tolerance = 1e-6)
 })
 
 # ========================================================================
@@ -307,7 +307,7 @@ test_that("reference points are correct for Schaefer", {
 # ========================================================================
 
 test_that("multi-area metrics are computed correctly", {
-  cfg <- make_metrics_config(B0 = 6000, n_areas = 3)
+  cfg <- make_metrics_config(B_initial = 6000, n_areas = 3)
   # B0_area = c(2000, 2000, 2000)
   n_sims <- 30
   n_years <- 10
@@ -343,7 +343,7 @@ test_that("multi-area metrics are computed correctly", {
 })
 
 test_that("aggregate biomass sums across areas correctly", {
-  cfg <- make_metrics_config(B0 = 6000, n_areas = 2)
+  cfg <- make_metrics_config(B_initial = 6000, n_areas = 2)
   # B0_area = c(3000, 3000), threshold 50% = 3000 total
   n_sims <- 50
   n_years <- 5

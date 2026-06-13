@@ -70,6 +70,9 @@ build_movement_kernel <- function(movement_cost_matrix,
 #' @param process_noise Logical. Whether to add stochastic process noise.
 #'   Default \code{TRUE} if \code{sigma_process} is present in
 #'   \code{true_params}.
+#' @param bias_correction Logical. Whether to apply lognormal mean bias
+#'   correction (\eqn{-\sigma_p^2/2}) when process noise is enabled.
+#'   Default \code{TRUE}.
 #' @param process_state Optional previous process-error state for AR1 noise.
 #'   Use \code{NULL} for iid process error or the initial step in a series.
 #' @param return_process_state Logical. If \code{TRUE}, return both biomass
@@ -82,7 +85,7 @@ build_movement_kernel <- function(movement_cost_matrix,
 #' The deterministic Pella-Tomlinson update is:
 #' \deqn{B_{t+1,a} = B_{t,a} + P(B_{t,a}) - C_{t,a}}
 #' where
-#' \deqn{P(B) = \frac{r \cdot B \cdot \bigl(1 - (B/K_a)^{m-1}\bigr)}{m}}
+#' \deqn{P(B) = \frac{r}{m-1} \cdot B \cdot \bigl(1 - (B/K_a)^{m-1}\bigr)}
 #'
 #' For multi-area models, \eqn{K} is distributed across areas proportional
 #' to initial biomass \eqn{B_0}.
@@ -121,6 +124,7 @@ project_biomass <- function(biomass,
                             om_config,
                             movement_kernel = NULL,
                             process_noise = NULL,
+                            bias_correction = TRUE,
                             process_state = NULL,
                             return_process_state = FALSE,
                             seed = NULL) {
@@ -143,20 +147,28 @@ project_biomass <- function(biomass,
   K <- tp$K
   m <- tp$m
 
-  # Distribute K across areas in proportion to the initial biomass shares.
+  # Use explicit per-area K when available; otherwise distribute total K
+  # across areas in proportion to the initial biomass shares.
   B_initial <- rep_len(tp$B_initial, n_areas)
-  if (n_areas > 1) {
+  if (!is.null(tp$K_area)) {
+    K_area <- rep_len(as.numeric(tp$K_area), n_areas)
+  } else if (n_areas > 1) {
     K_area <- K * (B_initial / sum(B_initial))
   } else {
     K_area <- K
   }
 
-  # Pella-Tomlinson production per area
+  # Standard Pella-Tomlinson production per area:
+  # P = r/(m-1) * B * (1 - (B/K)^(m-1)); Fox limit (m -> 1): r * B * log(K/B).
   production <- numeric(n_areas)
   for (a in seq_len(n_areas)) {
     if (biomass[a] > 0 && K_area[a] > 0) {
-      production[a] <- r * biomass[a] *
-        (1 - (biomass[a] / K_area[a])^(m - 1)) / m
+      if (abs(m - 1) < 1e-6) {
+        production[a] <- r * biomass[a] * log(K_area[a] / biomass[a])
+      } else {
+        production[a] <- (r / (m - 1)) * biomass[a] *
+          (1 - (biomass[a] / K_area[a])^(m - 1))
+      }
     }
   }
 
@@ -170,6 +182,7 @@ project_biomass <- function(biomass,
   if (is.null(process_noise)) {
     process_noise <- sigma_p > 0
   }
+  assert_flag(bias_correction, .var.name = "bias_correction")
 
   process_state_out <- rep(0, n_areas)
   if (process_noise && sigma_p > 0) {
@@ -181,9 +194,13 @@ project_biomass <- function(biomass,
       eps <- rnorm(n_areas, mean = 0, sd = sigma_p)
     }
     process_state_out <- eps
-    # Bias-corrected lognormal noise on positive biomass
+    # Optional bias-corrected lognormal noise on positive biomass
     B_positive <- pmax(B_new, 1e-8)
-    B_new <- B_positive * exp(eps - sigma_p^2 / 2)
+    if (isTRUE(bias_correction)) {
+      B_new <- B_positive * exp(eps - sigma_p^2 / 2)
+    } else {
+      B_new <- B_positive * exp(eps)
+    }
   }
 
   # Floor at small positive value
@@ -232,6 +249,9 @@ project_biomass <- function(biomass,
 #'   \code{catch_series} if not specified).
 #' @param process_noise Logical. Whether to add process noise. Default
 #'   \code{TRUE} if \code{sigma_process} is in \code{true_params}.
+#' @param bias_correction Logical. Whether to apply lognormal mean bias
+#'   correction (\eqn{-\sigma_p^2/2}) when process noise is enabled.
+#'   Default \code{TRUE}.
 #' @param seed Integer random seed, or \code{NULL}.
 #'
 #' @return A matrix of biomass with \code{n_years + 1} rows (including
@@ -257,6 +277,7 @@ project_trajectory <- function(B_initial,
                                om_config,
                                n_years = NULL,
                                process_noise = NULL,
+                               bias_correction = TRUE,
                                seed = NULL) {
   if (!inherits(om_config, "om_config")) {
     stop("om_config must be an 'om_config' object", call. = FALSE)
@@ -315,6 +336,7 @@ project_trajectory <- function(B_initial,
       om_config = om_config,
       movement_kernel = movement_kernel,
       process_noise = process_noise,
+      bias_correction = bias_correction,
       process_state = process_state,
       return_process_state = TRUE
     )

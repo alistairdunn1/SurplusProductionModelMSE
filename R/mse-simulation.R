@@ -318,18 +318,12 @@ mse_simulation <- function(operating_model,
       FMSY = em_result$fmsy
     )
   } else {
-    # Fallback to true parameters
-    r <- tp$r
-    K <- tp$K
-    m <- tp$m
-    if (abs(m - 1) < 1e-10) {
-      fmsy <- r / exp(1)
-      bmsy <- K / exp(1)
-    } else {
-      bmsy <- K * (1 / m)^(1 / (m - 1))
-      fmsy <- r * (1 - 1 / m) / m
-    }
-    list(K = K, MSY = fmsy * bmsy, BMSY = bmsy, FMSY = fmsy)
+    # Fallback to true parameters, using the canonical Pella-Tomlinson
+    # reference points shared with the assessment package.
+    rp <- SurplusProductionModel::pella_tomlinson_reference_points(
+      r = tp$r, K = tp$K, m = tp$m
+    )
+    list(K = tp$K, MSY = rp$msy, BMSY = rp$bmsy, FMSY = rp$fmsy)
   }
 }
 
@@ -614,11 +608,17 @@ mse_simulation <- function(operating_model,
     catch_store[yr, ] <- catch
 
     # 3. Generate CPUE observation from total biomass (pre-fishing).
-    # Catchability is biomass-weighted across areas so that spatial
-    # redistribution of the stock correctly modulates the CPUE signal.
+    # Catchability is catch-weighted across areas so that the observed
+    # index is dominated by the areas where fishing effort is concentrated.
+    # If total catch is zero, fall back to biomass weighting.
     b_total <- sum(biomass)
     q_agg <- if (n_areas > 1) {
-      sum(q_vec * biomass) / pmax(b_total, 1e-8)
+      catch_total <- sum(catch)
+      if (catch_total > 0) {
+        sum(q_vec * catch) / catch_total
+      } else {
+        sum(q_vec * biomass) / pmax(b_total, 1e-8)
+      }
     } else {
       q_vec[[1L]]
     }

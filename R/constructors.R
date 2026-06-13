@@ -58,12 +58,12 @@ om_config <- function(n_areas = 1L,
 
   obj <- structure(
     list(
-      n_areas         = as.integer(n_areas),
-      movement_rate   = movement_rate,
+      n_areas = as.integer(n_areas),
+      movement_rate = movement_rate,
       movement_cost_matrix = movement_cost_matrix,
-      attractiveness  = attractiveness,
-      decay           = decay,
-      true_params     = true_params
+      attractiveness = attractiveness,
+      decay = decay,
+      true_params = true_params
     ),
     class = "om_config"
   )
@@ -337,4 +337,174 @@ print.mse_scenario <- function(x, ...) {
     cat("  Catch allocation:      biomass-proportional\n")
   }
   invisible(x)
+}
+
+
+#' Create baseline scenarios for MSE runs
+#'
+#' Construct the standard baseline scenario set used in workflow scripts:
+#' no-catch, constant-F, and two hockey-stick variants.
+#'
+#' @param f_target Positive numeric scalar for target fishing mortality.
+#' @param assessment_frequency Integer >= 1 giving assessment interval in years.
+#' @param catch_allocation Optional numeric vector of non-negative area weights.
+#'
+#' @return A named list of `mse_scenario` objects.
+#' @export
+create_baseline_scenarios <- function(f_target,
+                                      assessment_frequency = 1L,
+                                      catch_allocation = NULL) {
+  assert_number(f_target, lower = .Machine$double.eps, .var.name = "f_target")
+  assert_count(assessment_frequency, positive = TRUE, .var.name = "assessment_frequency")
+
+  if (!is.null(catch_allocation)) {
+    assert_numeric(
+      catch_allocation,
+      any.missing = FALSE,
+      lower = 0,
+      finite = TRUE,
+      min.len = 1,
+      .var.name = "catch_allocation"
+    )
+    if (all(catch_allocation == 0)) {
+      stop("catch_allocation must contain at least one positive value", call. = FALSE)
+    }
+  }
+
+  list(
+    create_scenario(
+      name = "no_catch",
+      harvest_control_rule = function(biomass, reference_points) {
+        0
+      },
+      assessment_frequency = assessment_frequency,
+      catch_allocation = catch_allocation
+    ),
+    create_scenario(
+      name = sprintf("constant_f_%0.2f", f_target),
+      harvest_control_rule = hcr_constant_f(f_target),
+      assessment_frequency = assessment_frequency,
+      catch_allocation = catch_allocation
+    ),
+    create_scenario(
+      name = "hockey_20_50",
+      harvest_control_rule = hcr_hockey_stick(
+        f_target = f_target,
+        b_limit = 0.20,
+        b_target = 0.50
+      ),
+      assessment_frequency = assessment_frequency,
+      catch_allocation = catch_allocation
+    ),
+    create_scenario(
+      name = "hockey_10_40",
+      harvest_control_rule = hcr_hockey_stick(
+        f_target = f_target,
+        b_limit = 0.10,
+        b_target = 0.40
+      ),
+      assessment_frequency = assessment_frequency,
+      catch_allocation = catch_allocation
+    )
+  )
+}
+
+
+#' Create an HCR grid scenario set for tuning
+#'
+#' Construct a flattened list of scenarios over an `f_grid` for selected
+#' harvest-control-rule families.
+#'
+#' @param f_grid Numeric vector of positive F targets.
+#' @param assessment_frequency Integer >= 1 giving assessment interval in years.
+#' @param catch_allocation Optional numeric vector of non-negative area weights.
+#' @param include Character vector of HCR families to include. Allowed values are
+#'   `"constant_f"`, `"hockey_20_50"`, and `"hockey_10_40"`.
+#'
+#' @return A named list of `mse_scenario` objects.
+#' @export
+create_hcr_grid_scenarios <- function(f_grid,
+                                      assessment_frequency = 1L,
+                                      catch_allocation = NULL,
+                                      include = c("constant_f", "hockey_20_50", "hockey_10_40")) {
+  assert_numeric(
+    f_grid,
+    any.missing = FALSE,
+    lower = .Machine$double.eps,
+    finite = TRUE,
+    min.len = 1,
+    .var.name = "f_grid"
+  )
+  assert_count(assessment_frequency, positive = TRUE, .var.name = "assessment_frequency")
+  assert_character(include, any.missing = FALSE, min.len = 1, .var.name = "include")
+
+  if (!is.null(catch_allocation)) {
+    assert_numeric(
+      catch_allocation,
+      any.missing = FALSE,
+      lower = 0,
+      finite = TRUE,
+      min.len = 1,
+      .var.name = "catch_allocation"
+    )
+    if (all(catch_allocation == 0)) {
+      stop("catch_allocation must contain at least one positive value", call. = FALSE)
+    }
+  }
+
+  include <- unique(include)
+  allowed <- c("constant_f", "hockey_20_50", "hockey_10_40")
+  bad <- setdiff(include, allowed)
+  if (length(bad) > 0) {
+    stop(
+      "Unknown include option(s): ",
+      paste(bad, collapse = ", "),
+      ". Allowed values are: ",
+      paste(allowed, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  out <- lapply(f_grid, function(f_val) {
+    scenarios <- list()
+
+    if ("constant_f" %in% include) {
+      scenarios[[length(scenarios) + 1L]] <- create_scenario(
+        name = sprintf("cf_%0.3f", f_val),
+        harvest_control_rule = hcr_constant_f(f_val),
+        assessment_frequency = assessment_frequency,
+        catch_allocation = catch_allocation
+      )
+    }
+
+    if ("hockey_20_50" %in% include) {
+      scenarios[[length(scenarios) + 1L]] <- create_scenario(
+        name = sprintf("hs2050_%0.3f", f_val),
+        harvest_control_rule = hcr_hockey_stick(
+          f_target = f_val,
+          b_limit = 0.20,
+          b_target = 0.50
+        ),
+        assessment_frequency = assessment_frequency,
+        catch_allocation = catch_allocation
+      )
+    }
+
+    if ("hockey_10_40" %in% include) {
+      scenarios[[length(scenarios) + 1L]] <- create_scenario(
+        name = sprintf("hs1040_%0.3f", f_val),
+        harvest_control_rule = hcr_hockey_stick(
+          f_target = f_val,
+          b_limit = 0.10,
+          b_target = 0.40
+        ),
+        assessment_frequency = assessment_frequency,
+        catch_allocation = catch_allocation
+      )
+    }
+
+    scenarios
+  })
+
+  unlist(out, recursive = FALSE)
 }

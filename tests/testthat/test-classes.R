@@ -8,7 +8,7 @@ test_that("om_config creates valid single-area object", {
   om <- om_config(
     true_params = list(
       r = 0.3, K = 5000, m = 2,
-      sigma_obs = 0.2, q = 1e-4, B0 = 4000
+      sigma_obs = 0.2, q = 1e-4, B_initial = 4000
     )
   )
   expect_s3_class(om, "om_config")
@@ -31,7 +31,7 @@ test_that("om_config creates valid multi-area object", {
     true_params = list(
       r = 0.3, K = 5000, m = 2,
       sigma_obs = 0.2, q = rep(1e-4, 3),
-      B0 = c(2000, 2500, 1500)
+      B_initial = c(2000, 2500, 1500)
     )
   )
   expect_s3_class(om, "om_config")
@@ -67,7 +67,7 @@ test_that("om_config allows asymmetric movement_cost_matrix", {
       true_params = list(
         r = 0.3, K = 5000, m = 2,
         sigma_obs = 0.2, q = rep(1e-4, 3),
-        B0 = rep(2000, 3)
+        B_initial = rep(2000, 3)
       )
     ),
     "om_config"
@@ -82,7 +82,7 @@ test_that("om_config rejects wrong-sized movement_cost_matrix", {
       true_params = list(
         r = 0.3, K = 5000, m = 2,
         sigma_obs = 0.2, q = rep(1e-4, 3),
-        B0 = rep(2000, 3)
+        B_initial = rep(2000, 3)
       )
     )
   )
@@ -96,7 +96,7 @@ test_that("om_config rejects movement_cost_matrix with non-zero diagonal", {
       true_params = list(
         r = 0.3, K = 5000, m = 2,
         sigma_obs = 0.2, q = rep(1e-4, 2),
-        B0 = rep(2000, 2)
+        B_initial = rep(2000, 2)
       )
     )
   )
@@ -111,7 +111,7 @@ test_that("om_config rejects missing required true_params fields", {
 test_that("om_config rejects invalid parameter values", {
   base_params <- list(
     r = 0.3, K = 5000, m = 2,
-    sigma_obs = 0.2, q = 1e-4, B0 = 4000
+    sigma_obs = 0.2, q = 1e-4, B_initial = 4000
   )
   # r out of range
   expect_error(om_config(true_params = modifyList(base_params, list(r = 0))))
@@ -127,7 +127,7 @@ test_that("om_config print method works", {
   om <- om_config(
     true_params = list(
       r = 0.3, K = 5000, m = 2,
-      sigma_obs = 0.2, q = 1e-4, B0 = 4000
+      sigma_obs = 0.2, q = 1e-4, B_initial = 4000
     )
   )
   out <- capture.output(print(om))

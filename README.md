@@ -31,16 +31,17 @@ om <- om_config(
   n_areas = 1L,
   true_params = list(
     r = 0.3, K = 5000, m = 2,
-    sigma_obs = 0.2, q = 0.001, B0 = 5000
+    sigma_obs = 0.2, q = 0.001, B_initial = 5000
   )
 )
 
-# Define two harvest control rules
-# 1. Constant catch at 80% of MSY (MSY = rK/8 = 187.5)
+# Define two harvest control rules (standard Pella-Tomlinson Schaefer:
+# MSY = rK/4 = 375, FMSY = r/2 = 0.15)
+# 1. Constant catch at 80% of MSY (0.8 * 375 = 300)
 # 2. Hockey-stick that reduces F when biomass is low
 scenarios <- list(
-  create_scenario("Constant catch", hcr_constant_catch(150)),
-  create_scenario("Hockey stick",   hcr_hockey_stick(0.075, 0.20, 0.40))
+  create_scenario("Constant catch", hcr_constant_catch(300)),
+  create_scenario("Hockey stick",   hcr_hockey_stick(0.15, 0.20, 0.40))
 )
 
 # Run MSE (skip estimation model for speed)
@@ -50,6 +51,7 @@ result <- mse_simulation(
   n_sims           = 50L,
   n_proj_years     = 20L,
   min_assess_years = 99L,
+  initial_tac      = 300,
   seed             = 42L
 )
 print(result)

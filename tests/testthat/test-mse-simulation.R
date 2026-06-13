@@ -9,7 +9,7 @@ make_simple_om <- function() {
     n_areas = 1L,
     true_params = list(
       r = 0.3, K = 5000, m = 2,
-      sigma_obs = 0.2, q = 1e-4, B0 = 5000
+      sigma_obs = 0.2, q = 1e-4, B_initial = 5000
     )
   )
 }
@@ -23,7 +23,7 @@ make_spatial_om <- function() {
     true_params = list(
       r = 0.3, K = 5000, m = 2,
       sigma_obs = 0.2, q = c(1e-4, 1e-4),
-      B0 = c(3000, 2000)
+      B_initial = c(3000, 2000)
     )
   )
 }
@@ -43,7 +43,7 @@ make_scenario <- function(name = "test", assess_freq = 1L, impl = NULL) {
 
 test_that("mse_simulation rejects invalid operating_model", {
   expect_error(
-    mse_simulation(
+    mse_simulation(initial_tac = 0, 
       operating_model = "not_om",
       scenarios = make_scenario()
     ),
@@ -54,7 +54,7 @@ test_that("mse_simulation rejects invalid operating_model", {
 test_that("mse_simulation rejects om_config without true_params", {
   om <- om_config(n_areas = 1L)
   expect_error(
-    mse_simulation(
+    mse_simulation(initial_tac = 0, 
       operating_model = om,
       scenarios = make_scenario()
     ),
@@ -64,7 +64,7 @@ test_that("mse_simulation rejects om_config without true_params", {
 
 test_that("mse_simulation rejects invalid estimation_model", {
   expect_error(
-    mse_simulation(
+    mse_simulation(initial_tac = 0, 
       operating_model = make_simple_om(),
       estimation_model = "bad",
       scenarios = make_scenario()
@@ -75,7 +75,7 @@ test_that("mse_simulation rejects invalid estimation_model", {
 
 test_that("mse_simulation rejects invalid scenarios", {
   expect_error(
-    mse_simulation(
+    mse_simulation(initial_tac = 0, 
       operating_model = make_simple_om(),
       scenarios = list("bad")
     ),
@@ -85,7 +85,7 @@ test_that("mse_simulation rejects invalid scenarios", {
 
 test_that("mse_simulation rejects zero n_sims", {
   expect_error(
-    mse_simulation(
+    mse_simulation(initial_tac = 0, 
       operating_model = make_simple_om(),
       scenarios = make_scenario(),
       n_sims = 0
@@ -103,7 +103,7 @@ test_that("simulation loop completes with no assessments", {
   sc <- make_scenario()
   # min_assess_years > n_proj_years → no EM fit
 
-  res <- mse_simulation(
+  res <- mse_simulation(initial_tac = 0, 
     operating_model = om,
     scenarios = sc,
     n_sims = 5L,
@@ -123,7 +123,7 @@ test_that("simulation loop accepts single scenario (not wrapped in list)", {
   om <- make_simple_om()
   sc <- make_scenario()
 
-  res <- mse_simulation(om,
+  res <- mse_simulation(initial_tac = 0, om,
     scenarios = sc, n_sims = 3L, n_proj_years = 5L,
     min_assess_years = 99L, seed = 1
   )
@@ -135,7 +135,7 @@ test_that("simulation loop runs with multiple scenarios", {
   sc1 <- make_scenario("low_f")
   sc2 <- create_scenario("high_f", hcr_constant_f(0.1))
 
-  res <- mse_simulation(
+  res <- mse_simulation(initial_tac = 0, 
     om,
     scenarios = list(sc1, sc2),
     n_sims = 3L, n_proj_years = 8L,
@@ -154,7 +154,7 @@ test_that("trajectory arrays have correct dimensions (single area)", {
   om <- make_simple_om()
   sc <- make_scenario()
 
-  res <- mse_simulation(om,
+  res <- mse_simulation(initial_tac = 0, om,
     scenarios = sc, n_sims = 4L,
     n_proj_years = 8L, min_assess_years = 99L, seed = 1
   )
@@ -171,7 +171,7 @@ test_that("trajectory arrays have correct dimensions (multi-area)", {
   om <- make_spatial_om()
   sc <- make_scenario()
 
-  res <- mse_simulation(om,
+  res <- mse_simulation(initial_tac = 0, om,
     scenarios = sc, n_sims = 3L,
     n_proj_years = 6L, min_assess_years = 99L, seed = 1
   )
@@ -183,17 +183,17 @@ test_that("trajectory arrays have correct dimensions (multi-area)", {
   expect_equal(dim(traj$tac), c(3, 6))
 })
 
-test_that("trajectory biomass starts near B0", {
+test_that("trajectory biomass starts near B_initial", {
   om <- make_simple_om()
   sc <- make_scenario()
 
-  res <- mse_simulation(om,
+  res <- mse_simulation(initial_tac = 0, om,
     scenarios = sc, n_sims = 10L,
     n_proj_years = 5L, min_assess_years = 99L, seed = 1
   )
 
   traj <- res$results$test$trajectories
-  # Year 1 biomass should equal B0 (5000) for all sims
+  # Year 1 biomass should equal B_initial (5000) for all sims
 
   expect_equal(as.numeric(traj$biomass[, 1, 1]), rep(5000, 10))
 })
@@ -202,7 +202,7 @@ test_that("trajectory catch is positive", {
   om <- make_simple_om()
   sc <- make_scenario()
 
-  res <- mse_simulation(om,
+  res <- mse_simulation(initial_tac = 0, om,
     scenarios = sc, n_sims = 5L,
     n_proj_years = 8L, min_assess_years = 99L, seed = 1
   )
@@ -215,7 +215,7 @@ test_that("trajectory harvest_rate equals catch / biomass", {
   om <- make_simple_om()
   sc <- make_scenario()
 
-  res <- mse_simulation(om,
+  res <- mse_simulation(initial_tac = 0, om,
     scenarios = sc, n_sims = 5L,
     n_proj_years = 8L, min_assess_years = 99L, seed = 1
   )
@@ -229,7 +229,7 @@ test_that("no estimated_biomass before first assessment", {
   om <- make_simple_om()
   sc <- make_scenario()
 
-  res <- mse_simulation(om,
+  res <- mse_simulation(initial_tac = 0, om,
     scenarios = sc, n_sims = 3L,
     n_proj_years = 5L, min_assess_years = 99L, seed = 1
   )
@@ -242,23 +242,6 @@ test_that("no estimated_biomass before first assessment", {
 # ========================================================================
 # Initial TAC and TAC behaviour
 # ========================================================================
-
-test_that("default initial_tac equals true MSY", {
-  om <- make_simple_om()
-  sc <- make_scenario()
-
-  # True MSY for Schaefer: FMSY * BMSY = (0.3 * 0.5 / 2) * (5000 * 0.5)
-  # = 0.075 * 2500 = 187.5
-  res <- mse_simulation(om,
-    scenarios = sc, n_sims = 3L,
-    n_proj_years = 5L, min_assess_years = 99L, seed = 1
-  )
-
-  traj <- res$results$test$trajectories
-  # With perfect implementation, TAC should be MSY
-  # (no impl error in make_scenario by default)
-  expect_equal(traj$tac[1, 1], 187.5)
-})
 
 test_that("custom initial_tac is used", {
   om <- make_simple_om()
@@ -408,7 +391,7 @@ test_that("convergence failure is handled gracefully", {
 
   # Should complete without error even if EM fails to converge
   expect_no_error(
-    mse_simulation(om,
+    mse_simulation(initial_tac = 0, om,
       scenarios = sc, n_sims = 2L,
       n_proj_years = 8L, min_assess_years = 3L,
       seed = 42
@@ -425,12 +408,12 @@ test_that("fallback to true params when EM never converges", {
 
   res <- mse_simulation(om,
     scenarios = sc, n_sims = 3L,
-    n_proj_years = 5L, min_assess_years = 99L, seed = 1
+    n_proj_years = 5L, min_assess_years = 99L, initial_tac = 375, seed = 1
   )
 
   traj <- res$results$test$trajectories
-  # All TACs should be the initial_tac (true MSY)
-  expect_equal(unique(as.vector(traj$tac)), 187.5)
+  # No assessment ever occurs, so every TAC remains the supplied initial_tac.
+  expect_equal(unique(as.vector(traj$tac)), 375)
 })
 
 # ========================================================================
@@ -441,11 +424,11 @@ test_that("same seed produces identical results", {
   om <- make_simple_om()
   sc <- make_scenario()
 
-  res1 <- mse_simulation(om,
+  res1 <- mse_simulation(initial_tac = 0, om,
     scenarios = sc, n_sims = 5L,
     n_proj_years = 8L, min_assess_years = 99L, seed = 123
   )
-  res2 <- mse_simulation(om,
+  res2 <- mse_simulation(initial_tac = 0, om,
     scenarios = sc, n_sims = 5L,
     n_proj_years = 8L, min_assess_years = 99L, seed = 123
   )
@@ -467,11 +450,11 @@ test_that("different seeds produce different results", {
     implementation_error = impl
   )
 
-  res1 <- mse_simulation(om,
+  res1 <- mse_simulation(initial_tac = 0, om,
     scenarios = sc, n_sims = 5L,
     n_proj_years = 8L, min_assess_years = 99L, seed = 1
   )
-  res2 <- mse_simulation(om,
+  res2 <- mse_simulation(initial_tac = 0, om,
     scenarios = sc, n_sims = 5L,
     n_proj_years = 8L, min_assess_years = 99L, seed = 2
   )
@@ -491,7 +474,7 @@ test_that("performance metrics are calculated for each scenario", {
   sc1 <- make_scenario("s1")
   sc2 <- create_scenario("s2", hcr_constant_f(0.1))
 
-  res <- mse_simulation(om,
+  res <- mse_simulation(initial_tac = 0, om,
     scenarios = list(sc1, sc2), n_sims = 5L,
     n_proj_years = 8L, min_assess_years = 99L, seed = 1
   )
@@ -508,7 +491,7 @@ test_that("multi-area simulation runs without error", {
   om <- make_spatial_om()
   sc <- make_scenario()
 
-  res <- mse_simulation(om,
+  res <- mse_simulation(initial_tac = 0, om,
     scenarios = sc, n_sims = 3L,
     n_proj_years = 6L, min_assess_years = 99L, seed = 1
   )
@@ -516,7 +499,7 @@ test_that("multi-area simulation runs without error", {
   expect_s3_class(res, "mse_result")
   traj <- res$results$test$trajectories
   expect_equal(dim(traj$biomass)[3], 2L)
-  # Per-area biomass at year 1 should match B0
+  # Per-area biomass at year 1 should match B_initial
   expect_equal(traj$biomass[1, 1, ], c(3000, 2000))
 })
 
@@ -547,7 +530,7 @@ test_that("obs_error_params is constructed from true_params when NULL", {
   sc <- make_scenario()
 
   # Should not error — obs_error_params built internally
-  res <- mse_simulation(om,
+  res <- mse_simulation(initial_tac = 0, om,
     scenarios = sc, n_sims = 3L,
     n_proj_years = 5L, min_assess_years = 99L, seed = 1
   )
@@ -563,7 +546,7 @@ test_that("custom obs_error_params is accepted", {
     class = "obs_error_params"
   )
 
-  res <- mse_simulation(om,
+  res <- mse_simulation(initial_tac = 0, om,
     scenarios = sc, n_sims = 3L,
     n_proj_years = 5L, min_assess_years = 99L,
     obs_error_params = oep, seed = 1
@@ -578,7 +561,7 @@ test_that("custom obs_error_params is accepted", {
 test_that("print.mse_result works", {
   om <- make_simple_om()
   sc <- make_scenario()
-  res <- mse_simulation(om,
+  res <- mse_simulation(initial_tac = 0, om,
     scenarios = sc, n_sims = 3L,
     n_proj_years = 5L, min_assess_years = 99L, seed = 1
   )
@@ -602,7 +585,7 @@ test_that("simulation with EM fitting completes", {
 
   # Small sim with EM fitting enabled (min_assess = 5)
   expect_no_error(
-    res <- mse_simulation(
+    res <- mse_simulation(initial_tac = 0, 
       om,
       scenarios = sc, n_sims = 2L,
       n_proj_years = 10L, min_assess_years = 5L,
@@ -649,7 +632,7 @@ test_that("EM updates TAC after first assessment", {
 test_that("mse_result stores the matched call", {
   om <- make_simple_om()
   sc <- make_scenario()
-  res <- mse_simulation(om,
+  res <- mse_simulation(initial_tac = 0, om,
     scenarios = sc, n_sims = 3L,
     n_proj_years = 5L, min_assess_years = 99L, seed = 1
   )
@@ -659,18 +642,6 @@ test_that("mse_result stores the matched call", {
 # ========================================================================
 # Internal helpers
 # ========================================================================
-
-test_that(".compute_true_msy gives correct Schaefer MSY", {
-  tp <- list(r = 0.3, K = 5000, m = 2)
-  # FMSY = 0.3*(1-0.5)/2 = 0.075, BMSY = 5000*0.5 = 2500, MSY = 187.5
-  expect_equal(SurplusProductionModelMSE:::.compute_true_msy(tp), 187.5)
-})
-
-test_that(".compute_true_msy handles Fox model", {
-  tp <- list(r = 0.3, K = 5000, m = 1)
-  msy <- SurplusProductionModelMSE:::.compute_true_msy(tp)
-  expect_equal(msy, 0.3 / exp(1) * 5000 / exp(1), tolerance = 1e-8)
-})
 
 test_that(".build_hcr_ref_points with EM result", {
   em_res <- list(K = 5000, msy = 200, bmsy = 2500, fmsy = 0.08)
@@ -684,8 +655,9 @@ test_that(".build_hcr_ref_points fallback to true params", {
   tp <- list(r = 0.3, K = 5000, m = 2)
   ref <- SurplusProductionModelMSE:::.build_hcr_ref_points(NULL, tp)
   expect_equal(ref$K, 5000)
-  expect_equal(ref$MSY, 187.5)
-  expect_equal(ref$FMSY, 0.075)
+  # Standard PT Schaefer: MSY = rK/4 = 375, FMSY = r/2 = 0.15
+  expect_equal(ref$MSY, 375)
+  expect_equal(ref$FMSY, 0.15)
 })
 
 test_that(".make_obs_params creates valid obs_error_params", {

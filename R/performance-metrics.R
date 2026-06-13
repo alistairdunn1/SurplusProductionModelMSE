@@ -19,11 +19,12 @@
 #'   Pella-Tomlinson model). Default \code{K}.
 #'
 #' @return Named numeric vector of equilibrium F values. At equilibrium
-#'   \eqn{F \cdot B = P(B)}, so \eqn{F = P(B) / B = r (1 - (B/K)^{m-1}) / m}.
+#'   \eqn{F \cdot B = P(B)}, so
+#'   \eqn{F = P(B) / B = \frac{r}{m-1} (1 - (B/K)^{m-1})}.
 #'
 #' @details
 #' The equilibrium depletion F is:
-#' \deqn{F_{x} = \frac{r \left(1 - (x B_\mathrm{unfished} / K)^{m-1}\right)}{m}}
+#' \deqn{F_{x} = \frac{r}{m-1} \left(1 - (x B_\mathrm{unfished} / K)^{m-1}\right)}
 #'
 #' Returns 0 when \eqn{x B_\mathrm{unfished} \geq K} (no production surplus).
 #'
@@ -46,7 +47,7 @@ equilibrium_f <- function(x, r, K, m, B_unfished = K) {
   f_eq <- ifelse(
     B_target >= K,
     0,
-    r * (1 - (B_target / K)^(m - 1)) / m
+    SurplusProductionModel::pt_equilibrium_f(r = r, K = K, m = m, biomass = B_target)
   )
   names(f_eq) <- paste0("F", x * 100, "%B0")
   f_eq
@@ -162,19 +163,16 @@ calculate_performance_metrics <- function(trajectories,
   B0_total <- sum(B0_area_init)
   B0_area <- B0_area_init
 
-  # BMSY and FMSY from Pella-Tomlinson:
-  # BMSY = K * (1/m)^(1/(m-1))   [for m != 1]
-  # MSY  = r * K / (m * m^(1/(m-1)))
-  # FMSY = r * (1 - 1/m) / m = r*(m-1)/m^2
-  if (abs(m - 1) < 1e-10) {
-    # Fox model limit
-    BMSY <- K / exp(1)
-    FMSY <- r / exp(1)
-  } else {
-    BMSY <- K * (1 / m)^(1 / (m - 1))
-    FMSY <- r * (1 - (1 / m)) / m
-  }
-  MSY <- FMSY * BMSY
+  # Standard Pella-Tomlinson reference points, shared with the assessment
+  # package so OM truth and EM estimates use one implementation:
+  # BMSY = K * m^(-1/(m-1)), FMSY = r/m, MSY = FMSY * BMSY
+  # (Fox limit m -> 1: BMSY = K/e, FMSY = r, MSY = rK/e).
+  rp <- SurplusProductionModel::pella_tomlinson_reference_points(
+    r = r, K = K, m = m
+  )
+  BMSY <- rp$bmsy
+  FMSY <- rp$fmsy
+  MSY <- rp$msy
 
   # F thresholds: equilibrium F at each depletion level, using the
   # status baseline biomass reference.

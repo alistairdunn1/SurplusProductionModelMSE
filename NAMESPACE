@@ -23,6 +23,8 @@ export("om_config")
 export("em_config")
 export("impl_error")
 export("create_scenario")
+export("create_baseline_scenarios")
+export("create_hcr_grid_scenarios")
 
 # Export validation functions
 export("validate_om_config")
