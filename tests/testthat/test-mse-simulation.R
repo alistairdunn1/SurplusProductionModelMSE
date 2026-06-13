@@ -450,11 +450,11 @@ test_that("different seeds produce different results", {
     implementation_error = impl
   )
 
-  res1 <- mse_simulation(initial_tac = 0, om,
+  res1 <- mse_simulation(initial_tac = 200, om,
     scenarios = sc, n_sims = 5L,
     n_proj_years = 8L, min_assess_years = 99L, seed = 1
   )
-  res2 <- mse_simulation(initial_tac = 0, om,
+  res2 <- mse_simulation(initial_tac = 200, om,
     scenarios = sc, n_sims = 5L,
     n_proj_years = 8L, min_assess_years = 99L, seed = 2
   )

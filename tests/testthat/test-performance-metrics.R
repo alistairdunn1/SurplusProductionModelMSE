@@ -55,7 +55,7 @@ test_that("equilibrium_f returns 0 when x*B_initial >= K", {
 
 test_that("equilibrium_f names output correctly", {
   f <- equilibrium_f(c(0.5, 0.2), r = 0.3, K = 5000, m = 2)
-  expect_equal(names(f), c("F50%B0", "F20%B0"))
+  expect_equal(names(f), c("F50%K", "F20%K"))
 })
 
 test_that("equilibrium_f handles B_initial != K", {
@@ -102,10 +102,10 @@ test_that("default thresholds produce 50% and 20% entries", {
   traj <- make_trajectories()
   perf <- calculate_performance_metrics(traj, cfg)
 
-  expect_true("50%B0" %in% names(perf$biomass_risk))
-  expect_true("20%B0" %in% names(perf$biomass_risk))
-  expect_true("F50%B0" %in% names(perf$f_risk))
-  expect_true("F20%B0" %in% names(perf$f_risk))
+  expect_true("50%K" %in% names(perf$biomass_risk))
+  expect_true("20%K" %in% names(perf$biomass_risk))
+  expect_true("F50%K" %in% names(perf$f_risk))
+  expect_true("F20%K" %in% names(perf$f_risk))
 })
 
 # ========================================================================
@@ -117,7 +117,7 @@ test_that("Pr(B < threshold) per_year has correct length", {
   traj <- make_trajectories(n_years = 15)
   perf <- calculate_performance_metrics(traj, cfg)
 
-  per_year <- perf$biomass_risk[["50%B0"]]$aggregate$per_year
+  per_year <- perf$biomass_risk[["50%K"]]$aggregate$per_year
   expect_equal(length(per_year), 15)
 })
 
@@ -131,7 +131,7 @@ test_that("biomass always above threshold gives zero risk", {
   traj <- list(biomass = biomass, catch = catch)
   perf <- calculate_performance_metrics(traj, cfg)
 
-  risk50 <- perf$biomass_risk[["50%B0"]]$aggregate
+  risk50 <- perf$biomass_risk[["50%K"]]$aggregate
   expect_equal(risk50$final_year, 0)
   expect_equal(risk50$ever, 0)
   expect_true(all(risk50$per_year == 0))
@@ -147,11 +147,11 @@ test_that("biomass always below threshold gives risk = 1", {
   traj <- list(biomass = biomass, catch = catch)
   perf <- calculate_performance_metrics(traj, cfg)
 
-  risk50 <- perf$biomass_risk[["50%B0"]]$aggregate
+  risk50 <- perf$biomass_risk[["50%K"]]$aggregate
   expect_equal(risk50$final_year, 1)
   expect_equal(risk50$ever, 1)
 
-  risk20 <- perf$biomass_risk[["20%B0"]]$aggregate
+  risk20 <- perf$biomass_risk[["20%K"]]$aggregate
   expect_equal(risk20$final_year, 1)
   expect_equal(risk20$ever, 1)
 })
@@ -176,13 +176,13 @@ test_that("F risk uses correct equilibrium threshold", {
   traj <- make_trajectories()
   perf <- calculate_performance_metrics(traj, cfg)
 
-  # F50%B0 for standard PT Schaefer = 0.3*(1-0.5) = 0.15
-  expect_equal(unname(perf$reference$f_thresholds["F50%B0"]),
+  # F50%K for standard PT Schaefer = 0.3*(1-0.5) = 0.15
+  expect_equal(unname(perf$reference$f_thresholds["F50%K"]),
     0.15,
     tolerance = 1e-10
   )
-  # F20%B0 = 0.3*(1-0.2) = 0.24
-  expect_equal(unname(perf$reference$f_thresholds["F20%B0"]),
+  # F20%K = 0.3*(1-0.2) = 0.24
+  expect_equal(unname(perf$reference$f_thresholds["F20%K"]),
     0.24,
     tolerance = 1e-10
   )
@@ -307,8 +307,8 @@ test_that("reference points are correct for Schaefer", {
 # ========================================================================
 
 test_that("multi-area metrics are computed correctly", {
-  cfg <- make_metrics_config(B_initial = 6000, n_areas = 3)
-  # B0_area = c(2000, 2000, 2000)
+  cfg <- make_metrics_config(K = 6000, B_initial = 6000, n_areas = 3)
+  # K_area = c(2000, 2000, 2000)
   n_sims <- 30
   n_years <- 10
   n_areas <- 3
@@ -343,8 +343,8 @@ test_that("multi-area metrics are computed correctly", {
 })
 
 test_that("aggregate biomass sums across areas correctly", {
-  cfg <- make_metrics_config(B_initial = 6000, n_areas = 2)
-  # B0_area = c(3000, 3000), threshold 50% = 3000 total
+  cfg <- make_metrics_config(K = 6000, B_initial = 6000, n_areas = 2)
+  # K_area = c(3000, 3000), threshold 50% = 3000 total
   n_sims <- 50
   n_years <- 5
 
@@ -356,7 +356,7 @@ test_that("aggregate biomass sums across areas correctly", {
   traj <- list(biomass = biomass, catch = catch)
   perf <- calculate_performance_metrics(traj, cfg)
 
-  expect_equal(perf$biomass_risk[["50%B0"]]$aggregate$final_year, 1)
+  expect_equal(perf$biomass_risk[["50%K"]]$aggregate$final_year, 1)
 })
 
 # ========================================================================
@@ -369,9 +369,9 @@ test_that("custom thresholds are respected", {
   perf <- calculate_performance_metrics(traj, cfg, thresholds = c(0.75, 0.3, 0.1))
 
   expect_equal(length(perf$biomass_risk), 3)
-  expect_true("75%B0" %in% names(perf$biomass_risk))
-  expect_true("30%B0" %in% names(perf$biomass_risk))
-  expect_true("10%B0" %in% names(perf$biomass_risk))
+  expect_true("75%K" %in% names(perf$biomass_risk))
+  expect_true("30%K" %in% names(perf$biomass_risk))
+  expect_true("10%K" %in% names(perf$biomass_risk))
 })
 
 # ========================================================================
@@ -442,9 +442,9 @@ test_that("summary contains expected metric names", {
   perf <- calculate_performance_metrics(traj, cfg)
 
   s <- summary(perf)
-  expect_true(any(grepl("Pr\\(B<50%B0\\)", s$metric)))
-  expect_true(any(grepl("Pr\\(B<20%B0\\)", s$metric)))
-  expect_true(any(grepl("Pr\\(F>F50%B0\\)", s$metric)))
+  expect_true(any(grepl("Pr\\(B<50%K\\)", s$metric)))
+  expect_true(any(grepl("Pr\\(B<20%K\\)", s$metric)))
+  expect_true(any(grepl("Pr\\(F>F50%K\\)", s$metric)))
   expect_true(any(grepl("mean_catch", s$metric)))
   expect_true(any(grepl("AAV", s$metric)))
   expect_true(any(grepl("mean_B_BMSY", s$metric)))
@@ -463,6 +463,6 @@ test_that("provided harvest_rate is used when available", {
   traj <- list(biomass = biomass, catch = catch, harvest_rate = hr)
   perf <- calculate_performance_metrics(traj, cfg)
 
-  # F50%B0 = 0.075, so Pr(F > 0.075) should be 1 with F=0.5
-  expect_equal(perf$f_risk[["F50%B0"]]$aggregate$final_year, 1)
+  # F50%K = 0.075, so Pr(F > 0.075) should be 1 with F=0.5
+  expect_equal(perf$f_risk[["F50%K"]]$aggregate$final_year, 1)
 })

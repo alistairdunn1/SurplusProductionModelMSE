@@ -10,7 +10,11 @@ em_config(
   aggregate_areas = FALSE,
   process_noise = FALSE,
   process_error_structure = "iid",
-  fixed_params = NULL
+  fixed_params = NULL,
+  control = NULL,
+  n_starts = 1L,
+  calculate_se = FALSE,
+  priors = NULL
 )
 }
 \arguments{

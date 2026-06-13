@@ -194,7 +194,7 @@ result$results[["Hockey stick"]]$performance <- perf_hs
 p <- compare_scenarios(
   mse_results = result,
   metric_x    = "mean_catch",
-  metric_y    = "Pr(B<20%B0)_ever"
+  metric_y    = "Pr(B<20%K)_ever"
 )
 print(p)
 ```

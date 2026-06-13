@@ -84,7 +84,7 @@ test_that("compare_scenarios returns a ggplot with single mse_result", {
   sc2 <- create_scenario("high_f", hcr_constant_f(0.10))
   res <- run_quick_mse(om, list(sc1, sc2))
 
-  p <- compare_scenarios(res, "mean_catch", "Pr(B<20%B0)_final")
+  p <- compare_scenarios(res, "mean_catch", "Pr(B<20%K)_final")
   expect_s3_class(p, "ggplot")
 })
 
@@ -106,7 +106,7 @@ test_that("compare_scenarios plot contains correct number of points", {
   sc3 <- create_scenario("s3", hcr_constant_f(0.10))
   res <- run_quick_mse(om, list(sc1, sc2, sc3))
 
-  p <- compare_scenarios(res, "mean_catch", "Pr(B<50%B0)_final")
+  p <- compare_scenarios(res, "mean_catch", "Pr(B<50%K)_final")
   plot_data <- ggplot2::ggplot_build(p)$data[[1]]
   expect_equal(nrow(plot_data), 3L)
 })
@@ -130,7 +130,7 @@ test_that("Pareto frontier is correct for simple dominance", {
   # So A is Pareto optimal and B is not
   x <- c(200, 100) # mean_catch: higher better → dir = +1
   y <- c(0.1, 0.5) # Pr(...): lower better → dir = -1
-  result <- SurplusProductionModelMSE:::.is_pareto_optimal(x, y, "mean_catch", "Pr(B<20%B0)_final")
+  result <- SurplusProductionModelMSE:::.is_pareto_optimal(x, y, "mean_catch", "Pr(B<20%K)_final")
   expect_equal(result, c(TRUE, FALSE))
 })
 
@@ -138,7 +138,7 @@ test_that("Pareto frontier with trade-off keeps both points", {
   # Neither dominates the other
   x <- c(200, 100) # A has higher catch
   y <- c(0.5, 0.1) # B has lower risk
-  result <- SurplusProductionModelMSE:::.is_pareto_optimal(x, y, "mean_catch", "Pr(B<20%B0)_final")
+  result <- SurplusProductionModelMSE:::.is_pareto_optimal(x, y, "mean_catch", "Pr(B<20%K)_final")
   expect_equal(result, c(TRUE, TRUE))
 })
 
@@ -148,15 +148,15 @@ test_that("single scenario is always Pareto optimal", {
 })
 
 test_that("metric direction: risk metrics are lower-is-better", {
-  expect_equal(SurplusProductionModelMSE:::.metric_direction("Pr(B<50%B0)_final"), -1)
-  expect_equal(SurplusProductionModelMSE:::.metric_direction("Pr(F>F50%B0)_ever"), -1)
+  expect_equal(SurplusProductionModelMSE:::.metric_direction("Pr(B<50%K)_final"), -1)
+  expect_equal(SurplusProductionModelMSE:::.metric_direction("Pr(F>F50%K)_ever"), -1)
   expect_equal(SurplusProductionModelMSE:::.metric_direction("AAV"), -1)
 })
 
 test_that("metric direction: catch and biomass ratios are higher-is-better", {
   expect_equal(SurplusProductionModelMSE:::.metric_direction("mean_catch"), 1)
   expect_equal(SurplusProductionModelMSE:::.metric_direction("mean_B_BMSY"), 1)
-  expect_equal(SurplusProductionModelMSE:::.metric_direction("final_B_B0"), 1)
+  expect_equal(SurplusProductionModelMSE:::.metric_direction("final_B_K"), 1)
 })
 
 # ========================================================================
@@ -278,8 +278,8 @@ test_that("self-test with low F maintains healthy stock", {
     min_assess_years = 99L
   )
   s <- st$summary
-  depletion <- s$value[s$metric == "mean_B_B0" & s$scope == "aggregate"]
-  # Low F should keep stock well above 50% B_initial
+  depletion <- s$value[s$metric == "mean_B_K" & s$scope == "aggregate"]
+  # Low F should keep stock well above 50% K
 
   expect_true(depletion > 0.5)
 })
@@ -288,11 +288,11 @@ test_that("self-test with high F depletes stock", {
   om <- make_simple_om()
   st <- run_self_test(initial_tac = 0, om, hcr_constant_f(0.20),
     n_sims = 10L, n_proj_years = 15L, seed = 42,
-    min_assess_years = 99L
+    min_assess_years = 5L
   )
   s <- st$summary
-  depletion <- s$value[s$metric == "final_B_B0" & s$scope == "aggregate"]
-  # High F should deplete stock below K
+  depletion <- s$value[s$metric == "final_B_K" & s$scope == "aggregate"]
+  # High F should deplete stock below K once assessments begin applying the HCR
   expect_true(depletion < 0.9)
 })
 
@@ -425,7 +425,7 @@ test_that("higher catch produces lower final depletion", {
   )
 
   df <- SurplusProductionModelMSE:::.extract_scenario_metrics(list(res_lo, res_hi), "aggregate")
-  dep_lo <- df$value[df$scenario == "low" & df$metric == "final_B_B0"]
-  dep_hi <- df$value[df$scenario == "high" & df$metric == "final_B_B0"]
+  dep_lo <- df$value[df$scenario == "low" & df$metric == "final_B_K"]
+  dep_hi <- df$value[df$scenario == "high" & df$metric == "final_B_K"]
   expect_true(dep_lo > dep_hi)
 })

@@ -148,7 +148,7 @@ hcr_hockey_stick <- function(f_target, b_limit, b_target) {
 #'
 #' Returns a harvest control rule inspired by CCAMLR's precautionary approach.
 #' The rule targets a long-term depletion level of \code{target_depletion}
-#' (default 0.5, i.e. 50\% of \eqn{B_0}) with a probability cap on
+#' (default 0.5, i.e. 50\% of \eqn{K}) with a probability cap on
 #' depleting below \code{limit_depletion} (default 0.2).
 #'
 #' The TAC is set to maintain biomass near \code{target_depletion * K},

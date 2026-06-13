@@ -256,12 +256,16 @@ mse_simulation <- function(operating_model,
     while ((first_assessment_year %% scenario$assessment_frequency) != 0L) {
       first_assessment_year <- first_assessment_year + 1L
     }
+    # When the first assessment falls beyond the projection horizon (short
+    # runs, or scenarios with no in-horizon assessment) clamp the metric
+    # window so performance is still summarised rather than erroring.
+    metric_start_year <- max(1L, min(first_assessment_year, n_proj_years))
 
     # --- Performance metrics ---
     perf <- calculate_performance_metrics(
       trajectories,
       operating_model,
-      start_year = first_assessment_year
+      start_year = metric_start_year
     )
 
     results[[scenario$name]] <- list(

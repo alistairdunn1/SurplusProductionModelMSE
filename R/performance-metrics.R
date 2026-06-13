@@ -8,10 +8,10 @@
 #' Compute Equilibrium F at a Given Depletion Level
 #'
 #' For the Pella-Tomlinson model, calculate the fishing mortality that
-#' would produce an equilibrium biomass of \code{x * B0}.
+#' would produce an equilibrium biomass of \code{x * K}.
 #'
 #' @param x Numeric scalar or vector. Depletion fraction(s) (e.g. 0.5
-#'   for 50 percent of \code{B0}).
+#'   for 50 percent of \code{K}).
 #' @param r Numeric scalar. Intrinsic growth rate.
 #' @param K Numeric scalar. Carrying capacity.
 #' @param m Numeric scalar. Shape parameter.
@@ -49,7 +49,7 @@ equilibrium_f <- function(x, r, K, m, B_unfished = K) {
     0,
     SurplusProductionModel::pt_equilibrium_f(r = r, K = K, m = m, biomass = B_target)
   )
-  names(f_eq) <- paste0("F", x * 100, "%B0")
+  names(f_eq) <- paste0("F", x * 100, "%K")
   f_eq
 }
 
@@ -74,7 +74,8 @@ equilibrium_f <- function(x, r, K, m, B_unfished = K) {
 #' @param om_config An \code{\link{om_config}} object with
 #'   \code{true_params} set (needed for reference points).
 #' @param thresholds Numeric vector of depletion thresholds for risk
-#'   metrics, as fractions of \code{B0}. Default \code{c(0.5, 0.2)}.
+#'   metrics, as fractions of carrying capacity \code{K}. Default
+#'   \code{c(0.5, 0.2)}.
 #' @param start_year Integer scalar. First projection year to include in
 #'   performance summaries.
 #'
@@ -88,12 +89,12 @@ equilibrium_f <- function(x, r, K, m, B_unfished = K) {
 #'     \item{catch_stats}{List with \code{mean_catch},
 #'       \code{median_catch}, \code{sd_catch}, and \code{aav}
 #'       (aggregate and per-area).}
-#'     \item{biomass_ratios}{List with \code{mean_depletion} (B/B0),
+#'     \item{biomass_ratios}{List with \code{mean_depletion} (B/K),
 #'       \code{mean_b_bmsy} (B/BMSY), \code{final_depletion},
 #'       \code{final_b_bmsy} (aggregate and per-area).}
-#'     \item{reference}{List of reference values: \code{B0}, \code{K},
-#'       \code{BMSY}, \code{FMSY}, \code{MSY}, \code{thresholds},
-#'       \code{f_thresholds}.}
+#'     \item{reference}{List of reference values: \code{K}, \code{K_area},
+#'       \code{B_initial}, \code{BMSY}, \code{FMSY}, \code{MSY},
+#'       \code{thresholds}, \code{f_thresholds}.}
 #'     \item{n_sims}{Number of simulations.}
 #'     \item{n_years}{Number of projection years.}
 #'     \item{n_areas}{Number of areas.}
@@ -156,12 +157,20 @@ calculate_performance_metrics <- function(trajectories,
   K <- tp$K
   m <- tp$m
 
-  # Status reference uses the start-of-evaluation biomass baseline.
-  # This aligns status metrics with the equilibrium spin-up endpoint
-  # (when the OM initial state has been re-anchored accordingly).
-  B0_area_init <- rep_len(tp$B_initial, n_areas)
-  B0_total <- sum(B0_area_init)
-  B0_area <- B0_area_init
+  # Status reference uses carrying capacity K (= unfished biomass, the
+  # quantity denoted B0 in standard surplus-production notation).
+  # Depletion and status risk metrics are expressed as fractions of K.
+  # Per-area K follows the same allocation as the projection: an explicit
+  # K_area if supplied, otherwise the total K split by initial-biomass share.
+  K_total <- tp$K
+  B_initial_area <- rep_len(tp$B_initial, n_areas)
+  if (!is.null(tp$K_area)) {
+    K_area <- rep_len(as.numeric(tp$K_area), n_areas)
+  } else if (n_areas > 1) {
+    K_area <- K_total * (B_initial_area / sum(B_initial_area))
+  } else {
+    K_area <- K_total
+  }
 
   # Standard Pella-Tomlinson reference points, shared with the assessment
   # package so OM truth and EM estimates use one implementation:
@@ -176,7 +185,7 @@ calculate_performance_metrics <- function(trajectories,
 
   # F thresholds: equilibrium F at each depletion level, using the
   # status baseline biomass reference.
-  f_thresholds <- equilibrium_f(thresholds, r = r, K = K, m = m, B_unfished = B0_total)
+  f_thresholds <- equilibrium_f(thresholds, r = r, K = K, m = m, B_unfished = K_total)
 
   # --- Aggregate biomass/catch/F: sum across areas ---
   biomass_agg <- apply(biomass, c(1, 2), sum) # [n_sims x n_years]
@@ -189,16 +198,16 @@ calculate_performance_metrics <- function(trajectories,
   biomass_risk <- list()
   for (i in seq_along(thresholds)) {
     thresh <- thresholds[i]
-    lbl <- paste0(thresh * 100, "%B0")
+    lbl <- paste0(thresh * 100, "%K")
 
     # Aggregate
-    B_limit_agg <- thresh * B0_total
+    B_limit_agg <- thresh * K_total
     agg <- .risk_metrics(biomass_agg, B_limit_agg)
 
     # Per-area
     area_results <- vector("list", n_areas)
     for (a in seq_len(n_areas)) {
-      B_limit_a <- thresh * B0_area[a]
+      B_limit_a <- thresh * K_area[a]
       area_results[[a]] <- .risk_metrics(biomass[, , a], B_limit_a)
     }
     names(area_results) <- paste0("A", seq_len(n_areas))
@@ -210,7 +219,7 @@ calculate_performance_metrics <- function(trajectories,
   f_risk <- list()
   for (i in seq_along(thresholds)) {
     thresh <- thresholds[i]
-    lbl <- paste0("F", thresh * 100, "%B0")
+    lbl <- paste0("F", thresh * 100, "%K")
     f_limit <- f_thresholds[i]
 
     # For F risk, we want Pr(F > F_limit) — probability that fishing
@@ -237,7 +246,7 @@ calculate_performance_metrics <- function(trajectories,
   names(catch_stats$by_area) <- paste0("A", seq_len(n_areas))
 
   # --- Biomass ratios ---
-  depletion_agg <- biomass_agg / B0_total
+  depletion_agg <- biomass_agg / K_total
   b_bmsy_agg <- biomass_agg / BMSY
 
   biomass_ratios <- list(
@@ -254,8 +263,8 @@ calculate_performance_metrics <- function(trajectories,
         biomass_a <- matrix(biomass_a, nrow = 1)
       }
 
-      dep_a <- biomass_a / B0_area[a]
-      bb_a <- biomass_a / (BMSY * B0_area[a] / B0_total)
+      dep_a <- biomass_a / K_area[a]
+      bb_a <- biomass_a / (BMSY * K_area[a] / K_total)
       list(
         mean_depletion  = mean(dep_a, na.rm = TRUE),
         mean_b_bmsy     = mean(bb_a, na.rm = TRUE),
@@ -273,10 +282,9 @@ calculate_performance_metrics <- function(trajectories,
       catch_stats = catch_stats,
       biomass_ratios = biomass_ratios,
       reference = list(
-        B0           = B0_total, # status baseline biomass denominator
-        B0_area      = B0_area, # per-area status baseline biomass
-        B0_initial   = sum(B0_area_init), # OM initial biomass baseline
-        K            = K,
+        K            = K_total, # carrying capacity = status baseline (unfished biomass)
+        K_area       = K_area, # per-area carrying capacity
+        B_initial    = sum(B_initial_area), # OM initial biomass (start of series)
         BMSY         = BMSY,
         FMSY         = FMSY,
         MSY          = MSY,
@@ -448,20 +456,20 @@ print.mse_performance <- function(x, ...) {
   # Biomass ratios
   br <- x$biomass_ratios$aggregate
   cat(sprintf(
-    "\nBiomass Ratios (aggregate): mean B/B0=%.3f  ",
+    "\nBiomass Ratios (aggregate): mean B/K=%.3f  ",
     br$mean_depletion
   ))
   cat(sprintf("mean B/BMSY=%.3f\n", br$mean_b_bmsy))
   cat(sprintf(
-    "  Final year: B/B0=%.3f  B/BMSY=%.3f\n",
+    "  Final year: B/K=%.3f  B/BMSY=%.3f\n",
     br$final_depletion, br$final_b_bmsy
   ))
 
   # Reference points
   ref <- x$reference
   cat(sprintf(
-    "\nReference: B0=%.0f  BMSY=%.0f  FMSY=%.4f  MSY=%.0f\n",
-    ref$B0, ref$BMSY, ref$FMSY, ref$MSY
+    "\nReference: K=%.0f  BMSY=%.0f  FMSY=%.4f  MSY=%.0f\n",
+    ref$K, ref$BMSY, ref$FMSY, ref$MSY
   ))
 
   invisible(x)
@@ -554,7 +562,7 @@ summary.mse_performance <- function(object, ...) {
   # Biomass ratios
   br <- object$biomass_ratios$aggregate
   rows[[length(rows) + 1]] <- data.frame(
-    metric = "mean_B_B0", scope = "aggregate",
+    metric = "mean_B_K", scope = "aggregate",
     value = br$mean_depletion, stringsAsFactors = FALSE
   )
   rows[[length(rows) + 1]] <- data.frame(
@@ -562,7 +570,7 @@ summary.mse_performance <- function(object, ...) {
     value = br$mean_b_bmsy, stringsAsFactors = FALSE
   )
   rows[[length(rows) + 1]] <- data.frame(
-    metric = "final_B_B0", scope = "aggregate",
+    metric = "final_B_K", scope = "aggregate",
     value = br$final_depletion, stringsAsFactors = FALSE
   )
   rows[[length(rows) + 1]] <- data.frame(

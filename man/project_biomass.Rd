@@ -10,6 +10,7 @@ project_biomass(
   om_config,
   movement_kernel = NULL,
   process_noise = NULL,
+  bias_correction = TRUE,
   process_state = NULL,
   return_process_state = FALSE,
   seed = NULL
@@ -32,6 +33,10 @@ population parameters.}
 Default \code{TRUE} if \code{sigma_process} is present in
 \code{true_params}.}
 
+\item{bias_correction}{Logical. Whether to apply lognormal mean bias
+correction (\eqn{-\sigma_p^2/2}) when process noise is enabled.
+Default \code{TRUE}.}
+
 \item{process_state}{Optional previous process-error state for AR1 noise.
 Use \code{NULL} for iid process error or the initial step in a series.}
 
@@ -52,10 +57,10 @@ and spatial movement.
 The deterministic Pella-Tomlinson update is:
 \deqn{B_{t+1,a} = B_{t,a} + P(B_{t,a}) - C_{t,a}}
 where
-\deqn{P(B) = \frac{r \cdot B \cdot \bigl(1 - (B/K_a)^{m-1}\bigr)}{m}}
+\deqn{P(B) = \frac{r}{m-1} \cdot B \cdot \bigl(1 - (B/K_a)^{m-1}\bigr)}
 
 For multi-area models, \eqn{K} is distributed across areas proportional
-to initial biomass \eqn{B_0}.
+to initial biomass \eqn{B_\mathrm{initial}}.
 
 If \code{sigma_process > 0}, log-scale process noise is added:
 \deqn{B_{t+1,a} = (B_{t,a} + P(B_{t,a}) - C_{t,a}) \cdot
@@ -72,7 +77,7 @@ cfg <- om_config(
   n_areas = 1,
   true_params = list(
     r = 0.3, K = 5000, m = 2,
-    sigma_obs = 0.2, q = 1e-4, B0 = 5000
+    sigma_obs = 0.2, q = 1e-4, B_initial = 5000
   )
 )
 B1 <- project_biomass(5000, 200, cfg, seed = 1)

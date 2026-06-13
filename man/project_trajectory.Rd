@@ -10,6 +10,7 @@ project_trajectory(
   om_config,
   n_years = NULL,
   process_noise = NULL,
+  bias_correction = TRUE,
   seed = NULL
 )
 }
@@ -27,6 +28,10 @@ rows are years and columns are areas.}
 
 \item{process_noise}{Logical. Whether to add process noise. Default
 \code{TRUE} if \code{sigma_process} is in \code{true_params}.}
+
+\item{bias_correction}{Logical. Whether to apply lognormal mean bias
+correction (\eqn{-\sigma_p^2/2}) when process noise is enabled.
+Default \code{TRUE}.}
 
 \item{seed}{Integer random seed, or \code{NULL}.}
 }

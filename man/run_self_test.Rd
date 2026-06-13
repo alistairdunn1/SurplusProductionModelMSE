@@ -10,6 +10,7 @@ run_self_test(
   initial_tac,
   n_sims = 20L,
   n_proj_years = 20L,
+  min_assess_years = 5L,
   seed = NULL
 )
 }
@@ -26,6 +27,10 @@ run_self_test(
 
 \item{n_proj_years}{Integer. Projection years (default 20).}
 
+\item{min_assess_years}{Integer. Minimum accumulated data years before the
+first estimation-model fit (default 5), passed to
+\code{\link{mse_simulation}}.}
+
 \item{seed}{Integer random seed, or \code{NULL}.}
 }
 \value{
@@ -33,7 +38,7 @@ An S3 object of class \code{self_test_result} containing:
 \describe{
 \item{mse_result}{The underlying \code{mse_result} object.}
 \item{biomass_conserved}{Logical. TRUE if total biomass at
-year 1 matches B0 across all replicates.}
+year 1 matches B_initial across all replicates.}
 \item{positive_biomass}{Logical. TRUE if all biomass values
 are positive.}
 \item{summary}{A data frame of aggregate performance metrics.}

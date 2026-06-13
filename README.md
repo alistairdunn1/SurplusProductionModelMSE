@@ -65,7 +65,7 @@ perf <- lapply(result$results, function(sc) {
 for (nm in names(perf)) {
   result$results[[nm]]$performance <- perf[[nm]]
 }
-compare_scenarios(result, "mean_catch", "Pr(B<20%B0)_ever")
+compare_scenarios(result, "mean_catch", "Pr(B<20%K)_ever")
 ```
 
 ## Package Structure

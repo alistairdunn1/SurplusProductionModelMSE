@@ -88,7 +88,7 @@ build_movement_kernel <- function(movement_cost_matrix,
 #' \deqn{P(B) = \frac{r}{m-1} \cdot B \cdot \bigl(1 - (B/K_a)^{m-1}\bigr)}
 #'
 #' For multi-area models, \eqn{K} is distributed across areas proportional
-#' to initial biomass \eqn{B_0}.
+#' to initial biomass \eqn{B_\mathrm{initial}}.
 #'
 #' If \code{sigma_process > 0}, log-scale process noise is added:
 #' \deqn{B_{t+1,a} = (B_{t,a} + P(B_{t,a}) - C_{t,a}) \cdot
@@ -112,7 +112,7 @@ build_movement_kernel <- function(movement_cost_matrix,
 #'   n_areas = 1,
 #'   true_params = list(
 #'     r = 0.3, K = 5000, m = 2,
-#'     sigma_obs = 0.2, q = 1e-4, B0 = 5000
+#'     sigma_obs = 0.2, q = 1e-4, B_initial = 5000
 #'   )
 #' )
 #' B1 <- project_biomass(5000, 200, cfg, seed = 1)

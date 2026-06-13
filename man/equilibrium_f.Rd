@@ -8,7 +8,7 @@ equilibrium_f(x, r, K, m, B_unfished = K)
 }
 \arguments{
 \item{x}{Numeric scalar or vector. Depletion fraction(s) (e.g. 0.5
-for 50 percent of \code{B0}).}
+for 50 percent of \code{K}).}
 
 \item{r}{Numeric scalar. Intrinsic growth rate.}
 
@@ -21,15 +21,16 @@ Pella-Tomlinson model). Default \code{K}.}
 }
 \value{
 Named numeric vector of equilibrium F values. At equilibrium
-\eqn{F \cdot B = P(B)}, so \eqn{F = P(B) / B = r (1 - (B/K)^{m-1}) / m}.
+\eqn{F \cdot B = P(B)}, so
+\eqn{F = P(B) / B = \frac{r}{m-1} (1 - (B/K)^{m-1})}.
 }
 \description{
 For the Pella-Tomlinson model, calculate the fishing mortality that
-would produce an equilibrium biomass of \code{x * B0}.
+would produce an equilibrium biomass of \code{x * K}.
 }
 \details{
 The equilibrium depletion F is:
-\deqn{F_{x} = \frac{r \left(1 - (x B_\mathrm{unfished} / K)^{m-1}\right)}{m}}
+\deqn{F_{x} = \frac{r}{m-1} \left(1 - (x B_\mathrm{unfished} / K)^{m-1}\right)}
 
 Returns 0 when \eqn{x B_\mathrm{unfished} \geq K} (no production surplus).
 }

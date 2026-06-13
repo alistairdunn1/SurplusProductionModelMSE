@@ -27,7 +27,8 @@ Optional elements: \code{harvest_rate} (computed from
 \code{true_params} set (needed for reference points).}
 
 \item{thresholds}{Numeric vector of depletion thresholds for risk
-metrics, as fractions of \code{B0}. Default \code{c(0.5, 0.2)}.}
+metrics, as fractions of carrying capacity \code{K}. Default
+\code{c(0.5, 0.2)}.}
 
 \item{start_year}{Integer scalar. First projection year to include in
 performance summaries.}
@@ -43,12 +44,12 @@ structure as \code{biomass_risk}).}
 \item{catch_stats}{List with \code{mean_catch},
 \code{median_catch}, \code{sd_catch}, and \code{aav}
 (aggregate and per-area).}
-\item{biomass_ratios}{List with \code{mean_depletion} (B/B0),
+\item{biomass_ratios}{List with \code{mean_depletion} (B/K),
 \code{mean_b_bmsy} (B/BMSY), \code{final_depletion},
 \code{final_b_bmsy} (aggregate and per-area).}
-\item{reference}{List of reference values: \code{B0},
-\code{BMSY}, \code{FMSY}, \code{MSY}, \code{thresholds},
-\code{f_thresholds}.}
+\item{reference}{List of reference values: \code{K}, \code{K_area},
+\code{B_initial}, \code{BMSY}, \code{FMSY}, \code{MSY},
+\code{thresholds}, \code{f_thresholds}.}
 \item{n_sims}{Number of simulations.}
 \item{n_years}{Number of projection years.}
 \item{n_areas}{Number of areas.}
@@ -59,7 +60,4 @@ Compute a comprehensive set of performance indicators from simulation
 output, including risk probabilities, catch statistics, and biomass
 ratios. All probability metrics are computed per year, for the final
 year, and as probability of ever breaching the threshold.
-
-The \code{B0} reference used in status metrics is the baseline biomass at
-\code{start_year} (that is, after any excluded burn-in period).
 }

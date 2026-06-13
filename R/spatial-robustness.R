@@ -27,13 +27,13 @@
 #' \code{\link{summary.mse_performance}}.  Common choices include:
 #' \describe{
 #'   \item{Catch metrics}{\code{mean_catch}, \code{AAV}}
-#'   \item{Biomass risk}{\code{Pr(B<50\%B0)_final},
-#'     \code{Pr(B<50\%B0)_ever}, \code{Pr(B<20\%B0)_final},
-#'     \code{Pr(B<20\%B0)_ever}}
-#'   \item{F risk}{\code{Pr(F>F50\%B0)_final},
-#'     \code{Pr(F>F50\%B0)_ever}}
-#'   \item{Biomass ratios}{\code{mean_B_B0}, \code{mean_B_BMSY},
-#'     \code{final_B_B0}, \code{final_B_BMSY}}
+#'   \item{Biomass risk}{\code{Pr(B<50\%K)_final},
+#'     \code{Pr(B<50\%K)_ever}, \code{Pr(B<20\%K)_final},
+#'     \code{Pr(B<20\%K)_ever}}
+#'   \item{F risk}{\code{Pr(F>F50\%K)_final},
+#'     \code{Pr(F>F50\%K)_ever}}
+#'   \item{Biomass ratios}{\code{mean_B_K}, \code{mean_B_BMSY},
+#'     \code{final_B_K}, \code{final_B_BMSY}}
 #' }
 #'
 #' @examples
@@ -51,7 +51,7 @@
 #'   scenarios = list(s1, s2),
 #'   n_sims = 20, n_proj_years = 15, initial_tac = 0, seed = 1
 #' )
-#' compare_scenarios(res, "mean_catch", "Pr(B<20%B0)_final")
+#' compare_scenarios(res, "mean_catch", "Pr(B<20%K)_final")
 #' }
 #'
 #' @export
@@ -128,13 +128,16 @@ compare_scenarios <- function(mse_results,
 #' @param initial_tac Numeric scalar. TAC used before the first assessment.
 #' @param n_sims Integer. Number of replicates (default 20).
 #' @param n_proj_years Integer. Projection years (default 20).
+#' @param min_assess_years Integer. Minimum accumulated data years before the
+#'   first estimation-model fit (default 5), passed to
+#'   \code{\link{mse_simulation}}.
 #' @param seed Integer random seed, or \code{NULL}.
 #'
 #' @return An S3 object of class \code{self_test_result} containing:
 #'   \describe{
 #'     \item{mse_result}{The underlying \code{mse_result} object.}
 #'     \item{biomass_conserved}{Logical. TRUE if total biomass at
-#'       year 1 matches B0 across all replicates.}
+#'       year 1 matches B_initial across all replicates.}
 #'     \item{positive_biomass}{Logical. TRUE if all biomass values
 #'       are positive.}
 #'     \item{summary}{A data frame of aggregate performance metrics.}
@@ -170,6 +173,7 @@ run_self_test <- function(operating_model,
                           initial_tac,
                           n_sims = 20L,
                           n_proj_years = 20L,
+                          min_assess_years = 5L,
                           seed = NULL) {
   if (!inherits(operating_model, "om_config")) {
     stop("operating_model must be an 'om_config' object", call. = FALSE)
@@ -188,6 +192,7 @@ run_self_test <- function(operating_model,
     n_sims           = n_sims,
     n_proj_years     = n_proj_years,
     initial_tac      = initial_tac,
+    min_assess_years = min_assess_years,
     seed             = seed,
   )
 
