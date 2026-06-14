@@ -218,13 +218,27 @@ mse_simulation <- function(operating_model,
     }
 
     if (parallel && requireNamespace("future.apply", quietly = TRUE)) {
+      if (!requireNamespace("future", quietly = TRUE)) {
+        stop(
+          "parallel=TRUE requires package 'future', but it is not installed."
+        )
+      }
+      active_workers <- future::nbrOfWorkers()
+      if (!is.finite(active_workers) || active_workers <= 1L) {
+        stop(
+          "parallel=TRUE requires an active future plan with >1 worker. ",
+          "Current plan reports ", active_workers, " worker(s)."
+        )
+      }
       sim_results <- future.apply::future_lapply(
         seq_len(n_sims), sim_fn,
         future.seed = TRUE
       )
     } else {
       if (parallel) {
-        message("future.apply not available; running sequentially")
+        stop(
+          "parallel=TRUE requires package 'future.apply', but it is not installed."
+        )
       }
       if (verbose) {
         sim_results <- vector("list", n_sims)
