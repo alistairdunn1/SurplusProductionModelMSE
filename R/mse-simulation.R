@@ -453,9 +453,9 @@ mse_simulation <- function(operating_model,
           return(NULL)
         }
 
-        # Extract K - for single-area models it's K.A1, for multi-area it could be K.A1, K.A2, etc.
-        # Sum all K values to get total carrying capacity
-        k_names <- grep("^K\\.", names(fit$parameters), value = TRUE)
+        # Extract K. Accept both aggregate (K) and area-specific (K.A1, K.A2, ...)
+        # parameterisations and sum to total carrying capacity.
+        k_names <- grep("^K($|\\.)", names(fit$parameters), value = TRUE)
         if (length(k_names) == 0) {
           return(NULL)
         }
@@ -498,6 +498,8 @@ mse_simulation <- function(operating_model,
   catch_store <- matrix(NA_real_, n_proj_years, n_areas)
   tac_store <- rep(NA_real_, n_proj_years)
   est_bio_store <- rep(NA_real_, n_proj_years)
+  hcr_bio_store <- rep(NA_real_, n_proj_years)
+  em_fit_success_store <- rep(NA_real_, n_proj_years)
 
   # Accumulated histories for EM
   cpue_history <- data.frame(year = integer(0), cpue = numeric(0))
@@ -587,6 +589,8 @@ mse_simulation <- function(operating_model,
         cpue_history, catch_history, em_config, om_config
       )
 
+      em_fit_success_store[yr] <- if (!is.null(em_result)) 1 else 0
+
       if (!is.null(em_result)) {
         last_em_result <- em_result
       }
@@ -601,11 +605,46 @@ mse_simulation <- function(operating_model,
 
       ref_pts <- .build_hcr_ref_points(last_em_result, tp)
       current_tac <- scenario$harvest_control_rule(est_b, ref_pts)
+    } else {
+      # Carry forward latest assessment outcome between assessment years.
+      if (yr > 1) {
+        em_fit_success_store[yr] <- em_fit_success_store[yr - 1]
+      }
     }
 
     tac_store[yr] <- current_tac
-    eb <- if (!is.null(last_em_result)) last_em_result$est_biomass else NULL
-    est_bio_store[yr] <- if (length(eb) == 1) eb else NA_real_
+    em_est_vec <- if (!is.null(last_em_result)) suppressWarnings(as.numeric(last_em_result$est_biomass)) else numeric(0)
+    est_bio_store[yr] <- if (length(em_est_vec) > 0 && all(is.finite(em_est_vec))) {
+      sum(em_est_vec)
+    } else {
+      NA_real_
+    }
+
+    hcr_est_vec <- if (is.finite(est_bio_store[yr])) {
+      est_bio_store[yr]
+    } else {
+      sum(biomass)
+    }
+    hcr_bio_store[yr] <- if (length(hcr_est_vec) > 0 && all(is.finite(hcr_est_vec))) {
+      sum(hcr_est_vec)
+    } else {
+      NA_real_
+    }
+
+    if (yr == 1 && is.na(em_fit_success_store[yr])) {
+      em_fit_success_store[yr] <- 0
+    }
+
+    if (!is.finite(em_fit_success_store[yr])) {
+      em_fit_success_store[yr] <- if (yr > 1) em_fit_success_store[yr - 1] else 0
+    }
+
+    est_vec <- suppressWarnings(as.numeric(est_bio_store[yr]))
+    est_bio_store[yr] <- if (length(est_vec) > 0 && all(is.finite(est_vec))) {
+      sum(est_vec)
+    } else {
+      NA_real_
+    }
 
     # 2. Implementation error → realized catch
     if (n_areas > 1) {
@@ -675,6 +714,8 @@ mse_simulation <- function(operating_model,
     catch             = catch_store,
     tac               = tac_store,
     estimated_biomass = est_bio_store,
+    hcr_biomass_used  = hcr_bio_store,
+    em_fit_success    = em_fit_success_store,
     harvest_rate      = harvest_rate_store
   )
 }
@@ -689,6 +730,8 @@ mse_simulation <- function(operating_model,
   hr_arr <- array(NA_real_, dim = c(n_sims, n_proj_years, n_areas))
   tac_mat <- matrix(NA_real_, n_sims, n_proj_years)
   est_bio <- matrix(NA_real_, n_sims, n_proj_years)
+  hcr_bio <- matrix(NA_real_, n_sims, n_proj_years)
+  em_fit_success <- matrix(NA_real_, n_sims, n_proj_years)
 
   for (i in seq_len(n_sims)) {
     sim <- sim_results[[i]]
@@ -697,6 +740,8 @@ mse_simulation <- function(operating_model,
     hr_arr[i, , ] <- sim$harvest_rate
     tac_mat[i, ] <- sim$tac
     est_bio[i, ] <- sim$estimated_biomass
+    hcr_bio[i, ] <- sim$hcr_biomass_used
+    em_fit_success[i, ] <- sim$em_fit_success
   }
 
   list(
@@ -704,7 +749,9 @@ mse_simulation <- function(operating_model,
     catch             = catch_arr,
     harvest_rate      = hr_arr,
     tac               = tac_mat,
-    estimated_biomass = est_bio
+    estimated_biomass = est_bio,
+    hcr_biomass_used  = hcr_bio,
+    em_fit_success    = em_fit_success
   )
 }
 
