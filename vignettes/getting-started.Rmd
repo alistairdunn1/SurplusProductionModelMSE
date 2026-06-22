@@ -131,8 +131,9 @@ scenarios <- list(
 
 ### Step 4 — Run the MSE
 
-Run 50 stochastic replicates over a 20-year projection horizon. We skip the
-estimation model in this example to focus on the feedback loop mechanics:
+Run 50 stochastic replicates over a 20-year projection horizon. An assessment
+is run each year so that the harvest control rule responds to the estimated
+stock state:
 
 ```{r run-mse}
 set.seed(42)
@@ -142,7 +143,8 @@ result <- mse_simulation(
   scenarios        = scenarios,
   n_sims           = 50L,
   n_proj_years     = 20L,
-  min_assess_years = 99L,   # skip EM fitting (use true biomass)
+  min_assess_years = 1L,    # assess each year so the HCR is applied
+  initial_tac      = 300,   # catch limit before the first assessment (~0.8 * MSY)
   seed             = 42L,
   verbose          = FALSE
 )
@@ -150,10 +152,11 @@ result <- mse_simulation(
 print(result)
 ```
 
-Setting `min_assess_years = 99L` means the estimation model is never invoked
-and the HCR receives the true biomass. This is useful for understanding HCR
-behaviour in isolation, without the additional noise from stock assessment
-estimation error.
+`min_assess_years = 1L` means an assessment is performed from the first year
+onward, so the harvest control rule is applied each year using the estimated
+biomass, and `initial_tac` sets the catch limit used before the first
+assessment. Because no `estimation_model` is supplied, a default surplus
+production estimation model is fitted at each assessment.
 
 ### Step 5 — Evaluate Performance
 
