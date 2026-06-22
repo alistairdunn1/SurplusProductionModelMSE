@@ -1,0 +1,19 @@
+citHeader("To cite the SurplusProductionModelMSE package in publications use:")
+
+ver  <- meta$Version
+year <- format(Sys.Date(), "%Y")
+
+bibentry(
+  bibtype     = "Manual",
+  title       = "SurplusProductionModelMSE: Management Strategy Evaluation",
+  author      = person("Alistair", "Dunn"),
+  year        = year,
+  note        = paste("R package version", ver),
+  url         = "https://github.com/alistairdunn1/SurplusProductionModelMSE",
+  textVersion = paste0(
+    "Dunn, A. (", year, "). ",
+    "SurplusProductionModelMSE: Management Strategy Evaluation. ",
+    "R package version ", ver, ". ",
+    "https://github.com/alistairdunn1/SurplusProductionModelMSE"
+  )
+)
