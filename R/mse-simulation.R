@@ -461,6 +461,34 @@ mse_simulation <- function(operating_model,
         }
         total_K <- sum(fit$parameters[k_names])
 
+        # Plausibility guard. A divergent fit can report success while
+        # returning a biomass or carrying capacity many orders of magnitude
+        # beyond any realistic stock size, which would drive the harvest
+        # control rule to an extreme catch limit. Such estimates are rejected
+        # (returning NULL, treated as a convergence failure) so that the
+        # previous assessment is carried forward. The ceiling is a generous
+        # multiple of the operating-model carrying capacity.
+        tp <- om_config$true_params
+        k_ref <- if (!is.null(tp$K)) {
+          sum(as.numeric(tp$K))
+        } else if (!is.null(tp$B_initial)) {
+          sum(as.numeric(tp$B_initial))
+        } else {
+          NA_real_
+        }
+        max_factor <- if (!is.null(em_config$max_biomass_factor)) {
+          as.numeric(em_config$max_biomass_factor)
+        } else {
+          10
+        }
+        if (!is.finite(total_K) || total_K <= 0 || current_b <= 0) {
+          return(NULL)
+        }
+        if (is.finite(k_ref) &&
+          (current_b > max_factor * k_ref || total_K > max_factor * k_ref)) {
+          return(NULL)
+        }
+
         list(
           est_biomass = current_b,
           K           = total_K,
@@ -577,6 +605,15 @@ mse_simulation <- function(operating_model,
 
   q_vec <- rep_len(as.numeric(tp$q), n_areas)
 
+  # Maximum within-year exploitation fraction used to cap realised catch at the
+  # available biomass (see the catch step below). Overridable via the operating
+  # model configuration; defaults to 0.95 (at least 5% escapement retained).
+  u_max_harvest <- if (!is.null(om_config$max_harvest_rate)) {
+    as.numeric(om_config$max_harvest_rate)
+  } else {
+    0.95
+  }
+
   for (yr in seq_len(n_proj_years)) {
     # Record true biomass
     biomass_store[yr, ] <- biomass
@@ -662,6 +699,14 @@ mse_simulation <- function(operating_model,
     )
     catch <- impl_result$catch
     impl_eps <- impl_result$eps
+
+    # Cap realised catch at the available biomass. Removals in a year cannot
+    # exceed a maximum exploitation fraction of the current biomass; this keeps
+    # the recorded catch physical and prevents an implausible catch limit (for
+    # example from a divergent estimation-model fit) from driving biomass
+    # negative. The cap is applied per area against the start-of-year biomass.
+    catch <- pmin(catch, u_max_harvest * biomass)
+
     catch_store[yr, ] <- catch
 
     # 3. Generate CPUE observation from total biomass (pre-fishing).

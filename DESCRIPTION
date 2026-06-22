@@ -1,7 +1,7 @@
 Package: SurplusProductionModelMSE
 Type: Package
 Title: Management Strategy Evaluation
-Version: 0.1.0
+Version: 0.1.1
 Authors@R: 
     person("Alistair", "Dunn", 
            email = "alistair.dunn@oceanenvironmental.co.nz", 

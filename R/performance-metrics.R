@@ -397,12 +397,19 @@ calculate_performance_metrics <- function(trajectories,
     ))
   }
 
-  # Average Annual Variation: mean(|C_{t+1} - C_t| / C_t) across sims
+  # Average Annual Variation in catch. Computed per simulation as the sum of
+  # absolute year-on-year changes divided by the total catch, then averaged
+  # across simulations: AAV = mean_s( sum_t |C_{t+1} - C_t| / sum_t C_t ). The
+  # sum-based form is robust to individual near-zero catch years, which make the
+  # per-year ratio form (dividing each change by that year's catch) explode.
   n_years <- ncol(mat)
   if (n_years > 1) {
-    diffs <- abs(mat[, -1, drop = FALSE] - mat[, -n_years, drop = FALSE])
-    denom <- pmax(mat[, -n_years, drop = FALSE], 1e-8)
-    aav <- mean(diffs / denom, na.rm = TRUE)
+    abs_change <- rowSums(
+      abs(mat[, -1, drop = FALSE] - mat[, -n_years, drop = FALSE]),
+      na.rm = TRUE
+    )
+    total_catch <- rowSums(mat, na.rm = TRUE)
+    aav <- mean(abs_change / pmax(total_catch, 1e-8), na.rm = TRUE)
   } else {
     aav <- 0
   }
