@@ -4,7 +4,7 @@
 \alias{apply_implementation_error}
 \title{Apply Implementation Error to TAC}
 \usage{
-apply_implementation_error(tac, impl_config, previous_eps = 0, seed = NULL)
+apply_implementation_error(tac, impl_config, previous_eps = NULL, seed = NULL)
 }
 \arguments{
 \item{tac}{Numeric scalar or vector (multi-area). The intended TAC.
@@ -13,9 +13,11 @@ Must be non-negative.}
 \item{impl_config}{An \code{\link{impl_error}} configuration object,
 or \code{NULL} for perfect implementation (catch = TAC).}
 
-\item{previous_eps}{Numeric scalar or vector matching \code{tac}.
-The error state from the previous year, used for AR(1) continuity.
-Default 0 (no history).}
+\item{previous_eps}{Numeric scalar or vector matching \code{tac}, or
+\code{NULL} (default). The error state from the previous year, used for
+AR(1) continuity. When \code{NULL}, the first-year error is drawn from the
+stationary distribution \eqn{N(0, \sigma^2)} so it is not under-dispersed
+relative to later years (consistent with the observation-error model).}
 
 \item{seed}{Integer random seed for reproducibility, or \code{NULL}.}
 }

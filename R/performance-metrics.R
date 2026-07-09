@@ -74,8 +74,10 @@ equilibrium_f <- function(x, r, K, m, B_unfished = K) {
 #' @param om_config An \code{\link{om_config}} object with
 #'   \code{true_params} set (needed for reference points).
 #' @param thresholds Numeric vector of depletion thresholds for risk
-#'   metrics, as fractions of carrying capacity \code{K}. Default
-#'   \code{c(0.5, 0.2)}.
+#'   metrics, as fractions of the unfished biomass \code{B0}. Without movement
+#'   \code{B0} equals the sum of per-area carrying capacities; under movement it
+#'   is the joint unfished spatial equilibrium (which differs from the sum of
+#'   per-area \code{K}). Default \code{c(0.5, 0.2)}.
 #' @param start_year Integer scalar. First projection year to include in
 #'   performance summaries.
 #'
@@ -157,20 +159,16 @@ calculate_performance_metrics <- function(trajectories,
   K <- tp$K
   m <- tp$m
 
-  # Status reference uses carrying capacity K (= unfished biomass, the
-  # quantity denoted B0 in standard surplus-production notation).
-  # Depletion and status risk metrics are expressed as fractions of K.
-  # Per-area K follows the same allocation as the projection: an explicit
-  # K_area if supplied, otherwise the total K split by initial-biomass share.
-  K_total <- tp$K
+  # Status baseline is the unfished biomass B0 (the quantity denoted B0 in
+  # standard surplus-production notation). Under movement the joint unfished
+  # equilibrium differs from the sum of per-area carrying capacities, so
+  # depletion and biomass risk are expressed relative to that equilibrium;
+  # without movement B0 = sum of per-area K. The aggregate carrying capacity
+  # K_cc is retained separately for the (production-based) reference points.
+  K_cc <- tp$K
   B_initial_area <- rep_len(tp$B_initial, n_areas)
-  if (!is.null(tp$K_area)) {
-    K_area <- rep_len(as.numeric(tp$K_area), n_areas)
-  } else if (n_areas > 1) {
-    K_area <- K_total * (B_initial_area / sum(B_initial_area))
-  } else {
-    K_area <- K_total
-  }
+  K_area <- .om_unfished_biomass(om_config) # per-area unfished biomass (B0_a)
+  K_total <- sum(K_area) # total unfished biomass (B0)
 
   # Standard Pella-Tomlinson reference points, shared with the assessment
   # package so OM truth and EM estimates use one implementation:
@@ -282,14 +280,16 @@ calculate_performance_metrics <- function(trajectories,
       catch_stats = catch_stats,
       biomass_ratios = biomass_ratios,
       reference = list(
-        K            = K_total, # carrying capacity = status baseline (unfished biomass)
-        K_area       = K_area, # per-area carrying capacity
-        B_initial    = sum(B_initial_area), # OM initial biomass (start of series)
-        BMSY         = BMSY,
-        FMSY         = FMSY,
-        MSY          = MSY,
-        thresholds   = thresholds,
-        f_thresholds = f_thresholds
+        K                 = K_total, # status baseline B0 (unfished biomass)
+        B0                = K_total, # explicit unfished-biomass alias
+        K_area            = K_area, # per-area unfished biomass (B0_a)
+        carrying_capacity = K_cc, # aggregate carrying capacity (production K)
+        B_initial         = sum(B_initial_area), # OM initial biomass (start of series)
+        BMSY              = BMSY,
+        FMSY              = FMSY,
+        MSY               = MSY,
+        thresholds        = thresholds,
+        f_thresholds      = f_thresholds
       ),
       n_sims = n_sims,
       n_years = n_years,
@@ -301,6 +301,46 @@ calculate_performance_metrics <- function(trajectories,
 
 
 # --- Internal helpers ---
+
+#' Operating-model unfished spatial equilibrium (B0 per area)
+#'
+#' Deterministic, zero-catch biomass per area at equilibrium. Under movement
+#' this is the joint redistributed equilibrium (production balances net
+#' movement) and differs from the per-area carrying capacities; without movement
+#' each area rests at its own K. Used as the unfished baseline B0 for depletion
+#' and status so that these are measured against the true unfished level.
+#' @noRd
+.om_unfished_biomass <- function(om_config, n_spinup = 100L) {
+  n_areas <- om_config$n_areas
+  tp <- om_config$true_params
+
+  B_initial_area <- rep_len(tp$B_initial, n_areas)
+  if (!is.null(tp$K_area)) {
+    K_area <- rep_len(as.numeric(tp$K_area), n_areas)
+  } else if (n_areas > 1) {
+    K_area <- tp$K * (B_initial_area / sum(B_initial_area))
+  } else {
+    K_area <- rep_len(as.numeric(tp$K), n_areas)
+  }
+
+  # No movement: each area rests at its own carrying capacity (B0 = K).
+  if (n_areas == 1L || is.null(om_config$movement_rate) ||
+    om_config$movement_rate <= 0) {
+    return(K_area)
+  }
+
+  # With movement, iterate the deterministic zero-catch dynamics to the joint
+  # unfished equilibrium using the operating model's own transition function.
+  traj <- project_trajectory(
+    B_initial     = K_area,
+    catch_series  = matrix(0, nrow = n_spinup, ncol = n_areas),
+    om_config     = om_config,
+    n_years       = n_spinup,
+    process_noise = FALSE
+  )
+  as.numeric(traj[nrow(traj), , drop = TRUE])
+}
+
 
 #' Coerce to 3D array \[n_sims x n_years x n_areas\]
 #' @noRd

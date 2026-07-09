@@ -27,8 +27,10 @@ Optional elements: \code{harvest_rate} (computed from
 \code{true_params} set (needed for reference points).}
 
 \item{thresholds}{Numeric vector of depletion thresholds for risk
-metrics, as fractions of carrying capacity \code{K}. Default
-\code{c(0.5, 0.2)}.}
+metrics, as fractions of the unfished biomass \code{B0}. Without movement
+\code{B0} equals the sum of per-area carrying capacities; under movement it
+is the joint unfished spatial equilibrium (which differs from the sum of
+per-area \code{K}). Default \code{c(0.5, 0.2)}.}
 
 \item{start_year}{Integer scalar. First projection year to include in
 performance summaries.}

@@ -402,15 +402,13 @@ mse_simulation <- function(operating_model,
     show_starting_values_message = FALSE
   )
 
+  fixed_params <- NULL
   if (!is.null(em_config)) {
     fit_options$process_noise <- isTRUE(em_config$process_noise)
     fit_options$process_error_structure <-
       tolower(as.character(em_config$process_error_structure %||% "iid"))
 
     fixed_params <- .normalise_em_fixed_params(em_config$fixed_params)
-    if (!is.null(fixed_params)) {
-      fit_options$fixed_params <- fixed_params
-    }
 
     # Add control options if specified in EM config
     if (!is.null(em_config$control)) {
@@ -432,6 +430,17 @@ mse_simulation <- function(operating_model,
       fit_options$priors <- em_config$priors
     }
   }
+
+  # Assume an unfished start in the estimation model by default (fix initial
+  # depletion d0 = 1). The accumulating in-loop series is short and provides
+  # little contrast, so K, q and d0 are jointly unidentifiable and a free d0
+  # yields unstable biomass estimates. Fixing d0 = 1 gives the EM a well-posed
+  # scale reference (equivalent to the conventional unfished-start assumption).
+  # Callers can override by supplying d0 in em_config$fixed_params or a prior.
+  if (is.null(fixed_params) || !("log_d0" %in% names(fixed_params))) {
+    fixed_params <- c(fixed_params, list(log_d0 = 0))
+  }
+  fit_options$fixed_params <- fixed_params
 
   tryCatch(
     withCallingHandlers(
@@ -517,7 +526,7 @@ mse_simulation <- function(operating_model,
 
   # State
   biomass <- B_initial
-  impl_eps <- rep(0, n_areas)
+  impl_eps <- NULL # AR(1) implementation-error state; NULL triggers stationary initialisation
   process_state <- rep(0, n_areas)
   obs_eps <- NULL # AR(1) observation-error state; NULL triggers stationary initialisation
 
@@ -713,6 +722,13 @@ mse_simulation <- function(operating_model,
     # Catchability is catch-weighted across areas so that the observed
     # index is dominated by the areas where fishing effort is concentrated.
     # If total catch is zero, fall back to biomass weighting.
+    #
+    # Note: because the weights shift with the spatial catch distribution, the
+    # effective aggregate catchability q_agg varies from year to year. The
+    # single-index estimation model assumes a constant q and cannot represent
+    # this variation, so the aggregate index is a deliberate misspecification
+    # (robustness) stressor rather than a neutral spatial aggregation. The
+    # resulting index is not exactly proportional to total biomass.
     b_total <- sum(biomass)
     q_agg <- if (n_areas > 1) {
       catch_total <- sum(catch)

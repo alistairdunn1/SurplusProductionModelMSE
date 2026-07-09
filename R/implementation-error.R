@@ -14,9 +14,11 @@
 #'   Must be non-negative.
 #' @param impl_config An \code{\link{impl_error}} configuration object,
 #'   or \code{NULL} for perfect implementation (catch = TAC).
-#' @param previous_eps Numeric scalar or vector matching \code{tac}.
-#'   The error state from the previous year, used for AR(1) continuity.
-#'   Default 0 (no history).
+#' @param previous_eps Numeric scalar or vector matching \code{tac}, or
+#'   \code{NULL} (default). The error state from the previous year, used for
+#'   AR(1) continuity. When \code{NULL}, the first-year error is drawn from the
+#'   stationary distribution \eqn{N(0, \sigma^2)} so it is not under-dispersed
+#'   relative to later years (consistent with the observation-error model).
 #' @param seed Integer random seed for reproducibility, or \code{NULL}.
 #'
 #' @return A list with:
@@ -58,7 +60,7 @@
 #' @export
 apply_implementation_error <- function(tac,
                                        impl_config,
-                                       previous_eps = 0,
+                                       previous_eps = NULL,
                                        seed = NULL) {
   # Perfect implementation
   if (is.null(impl_config)) {
@@ -77,7 +79,6 @@ apply_implementation_error <- function(tac,
   if (!is.null(seed)) set.seed(seed)
 
   n <- length(tac)
-  previous_eps <- rep_len(previous_eps, n)
 
   # Identify closures (zero TAC)
   is_zero <- tac <= 0
@@ -89,10 +90,17 @@ apply_implementation_error <- function(tac,
   bias <- impl_config$bias
   max_overage <- impl_config$max_overage
 
-  # AR(1) lognormal error
-  innovation_sd <- sigma * sqrt(max(0, 1 - rho^2))
-  eta <- rnorm(n, mean = 0, sd = innovation_sd)
-  eps <- rho * previous_eps + eta
+  # AR(1) lognormal error. With no prior state, draw the first year from the
+  # stationary distribution N(0, sigma^2) so it is not under-dispersed relative
+  # to later years; otherwise propagate the AR(1) recurrence.
+  if (is.null(previous_eps)) {
+    eps <- rnorm(n, mean = 0, sd = sigma)
+  } else {
+    previous_eps <- rep_len(previous_eps, n)
+    innovation_sd <- sigma * sqrt(max(0, 1 - rho^2))
+    eta <- rnorm(n, mean = 0, sd = innovation_sd)
+    eps <- rho * previous_eps + eta
+  }
 
   # Bias-corrected lognormal realisation
   catch_val <- bias * tac * exp(eps - sigma^2 / 2)
