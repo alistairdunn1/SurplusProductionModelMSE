@@ -419,7 +419,7 @@ test_that("print.mse_performance produces output", {
   out <- capture.output(print(perf))
   expect_true(any(grepl("MSE Performance", out)))
   expect_true(any(grepl("Biomass Risk", out)))
-  expect_true(any(grepl("F Risk", out)))
+  expect_true(any(grepl("Exploitation-rate Risk", out)))
   expect_true(any(grepl("Catch", out)))
 })
 
@@ -444,7 +444,7 @@ test_that("summary contains expected metric names", {
   s <- summary(perf)
   expect_true(any(grepl("Pr\\(B<50%K\\)", s$metric)))
   expect_true(any(grepl("Pr\\(B<20%K\\)", s$metric)))
-  expect_true(any(grepl("Pr\\(F>F50%K\\)", s$metric)))
+  expect_true(any(grepl("Pr\\(U>U50%B0\\)", s$metric)))
   expect_true(any(grepl("mean_catch", s$metric)))
   expect_true(any(grepl("AAV", s$metric)))
   expect_true(any(grepl("mean_B_BMSY", s$metric)))

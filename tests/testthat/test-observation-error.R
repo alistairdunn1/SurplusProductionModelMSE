@@ -44,6 +44,24 @@ test_that("calibrate_observation_error works with matrix residuals", {
   expect_equal(length(params$sigma), 1) # pooled across areas
   expect_null(params$labels)
   expect_true(abs(params$sigma - 0.3) < 0.1)
+  expect_equal(nrow(params$by_series), 3)
+})
+
+test_that("calibrate_observation_error retains area-specific temporal sequences", {
+  # Each area has perfect negative lag-one correlation. Flattening the matrix
+  # would insert a non-temporal transition between the two areas.
+  r <- cbind(A1 = c(-1, 1, -1), A2 = c(-1, 1, -1))
+  params <- calibrate_observation_error(mock_fitted_model(r))
+
+  expect_lt(params$rho, -0.99)
+  expect_equal(params$by_series$n_pairs, c(2L, 2L))
+})
+
+test_that("calibrate_observation_error does not bridge missing temporal observations", {
+  r <- c(-1, NA, 1, -1, 1)
+  params <- calibrate_observation_error(mock_fitted_model(r))
+
+  expect_equal(params$by_series$n_pairs, 2L)
 })
 
 test_that("calibrate_observation_error works with 3D array residuals (multi-index)", {

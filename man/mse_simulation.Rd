@@ -12,6 +12,7 @@ mse_simulation(
   n_proj_years = 20L,
   obs_error_params = NULL,
   initial_tac,
+  historical_data = NULL,
   min_assess_years = 5L,
   parallel = FALSE,
   seed = NULL,
@@ -38,8 +39,15 @@ list of them.}
 construct from \code{operating_model$true_params$sigma_obs}
 with zero autocorrelation.}
 
-\item{initial_tac}{Numeric scalar. TAC used before the first
-assessment. This must be supplied explicitly by the caller.}
+\item{initial_tac}{Numeric scalar. TAC used before the first assessment
+when \code{historical_data} is \code{NULL}. This must be supplied
+explicitly by the caller.}
+
+\item{historical_data}{Optional named list containing \code{cpue_data} and
+\code{catch_data}, each with \code{year} and respectively \code{cpue} or
+\code{catch} columns. These are the historical aggregate observations
+available to the EM at the projection start. When supplied, the EM is fit
+to these data and the HCR sets the first projected TAC.}
 
 \item{min_assess_years}{Integer. Minimum number of accumulated
 data years before the first EM fit (default 5).}
@@ -69,7 +77,10 @@ Trajectory arrays have dimensions
 \code{[n_sims x n_proj_years x n_areas]} for per-area metrics
 (biomass, catch, harvest_rate) and
 \code{[n_sims x n_proj_years]} for aggregate metrics
-(tac, estimated_biomass).
+(tac, estimated_biomass). When an explicit maximum exploitation rate is
+configured, trajectories also contain \code{requested_catch} and
+\code{catch_constrained}, which record the catch before the constraint and
+whether it bound in each area, respectively.
 }
 \description{
 Core closed-loop simulation engine that iterates over projection years:
@@ -84,8 +95,8 @@ The simulation loop for each replicate and year proceeds as:
 \item If an assessment year and enough data have accumulated,
 fit the estimation model to accumulated CPUE and catch,
 then apply the harvest control rule to set the TAC.
-Convergence failures are handled gracefully by retaining
-the previous assessment result.
+A failed or invalid estimation-model fit stops the simulation with an
+error.
 \item Apply implementation error to the TAC to obtain
 realized catch.
 \item Generate a CPUE observation and record catch for the
@@ -94,7 +105,20 @@ next assessment.
 }
 
 Between assessments the most recent TAC is carried forward.
-Before the first assessment, \code{initial_tac} is used.
+Without historical data, \code{initial_tac} is used before the first
+assessment. With historical data, the first projected TAC is set by an
+initial EM fit and HCR application. Future projection years follow the last
+historical year.
+A failed or invalid estimation-model fit stops the simulation with an error.
+No management fallback uses operating-model truth, a previous assessment,
+or a substituted TAC. HCR biomass and reference points are derived from the
+estimation model; true spatial \eqn{B_0} is used only for performance
+evaluation. Realised catch is capped only when
+\code{operating_model$max_harvest_rate} is explicitly supplied.
+For multi-area operating models, the aggregate fishery-dependent index uses
+year-specific realised catch shares as a proxy for the spatial observation
+footprint: \eqn{I_t = \sum_a w_{a,t} q_a B_{a,t}}, where
+\eqn{w_{a,t} = C_{a,t}/\sum_a C_{a,t}}.
 }
 \examples{
 \dontrun{

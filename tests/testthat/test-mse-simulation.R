@@ -382,14 +382,15 @@ test_that("implementation error makes catch differ from TAC", {
 # Convergence handling
 # ========================================================================
 
-test_that("convergence failure is handled gracefully", {
+test_that("an assessment is not applied before sufficient data are available", {
   om <- make_simple_om()
   # Use a very low F so biomass barely changes → EM may struggle
   sc <- create_scenario("tricky", hcr_constant_f(0.001),
     assessment_frequency = 1L
   )
 
-  # Should complete without error even if EM fails to converge
+  # This construction does not guarantee a failed fit. The hard-error policy
+  # is tested directly through the missing-EM-reference test below.
   expect_no_error(
     mse_simulation(initial_tac = 0, om,
       scenarios = sc, n_sims = 2L,
@@ -399,7 +400,7 @@ test_that("convergence failure is handled gracefully", {
   )
 })
 
-test_that("fallback to true params when EM never converges", {
+test_that("initial TAC is retained when no assessment is scheduled", {
   om <- make_simple_om()
   # If all EM fits fail, TAC uses true biomass + true ref points
   # We can't force failure easily, but we can verify the loop
@@ -651,13 +652,92 @@ test_that(".build_hcr_ref_points with EM result", {
   expect_equal(ref$MSY, 200)
 })
 
-test_that(".build_hcr_ref_points fallback to true params", {
+test_that(".build_hcr_ref_points requires an EM result", {
   tp <- list(r = 0.3, K = 5000, m = 2)
-  ref <- SurplusProductionModelMSE:::.build_hcr_ref_points(NULL, tp)
-  expect_equal(ref$K, 5000)
-  # Standard PT Schaefer: MSY = rK/4 = 375, FMSY = r/2 = 0.15
-  expect_equal(ref$MSY, 375)
-  expect_equal(ref$FMSY, 0.15)
+  expect_error(
+    SurplusProductionModelMSE:::.build_hcr_ref_points(NULL, tp),
+    "successful estimation-model result"
+  )
+})
+
+test_that("historical EM data require CPUE years contained in the catch history", {
+  expect_error(
+    SurplusProductionModelMSE:::.validate_historical_data(list(
+      cpue_data = data.frame(year = 2018:2019, cpue = c(0.4, 0.3)),
+      catch_data = data.frame(year = 2017:2018, catch = c(200, 220))
+    )),
+    "years must be contained"
+  )
+})
+
+test_that("historical EM data initialise the first projected HCR decision", {
+  om <- make_simple_om()
+  historical_data <- list(
+    cpue_data = data.frame(year = 2018:2022, cpue = c(0.45, 0.43, 0.41, 0.39, 0.37)),
+    catch_data = data.frame(year = 2018:2022, catch = c(200, 220, 240, 260, 280))
+  )
+  res <- mse_simulation(
+    om,
+    scenarios = make_scenario(),
+    n_sims = 1L,
+    n_proj_years = 3L,
+    initial_tac = 300,
+    historical_data = historical_data,
+    min_assess_years = 3L,
+    seed = 2
+  )
+
+  expect_equal(res$projection_years, 2023:2025)
+  expect_equal(res$results$test$trajectories$em_fit_success[1, 1], 1)
+  expect_true(is.finite(res$results$test$trajectories$tac[1, 1]))
+})
+
+test_that("no exploitation cap is applied unless explicitly configured", {
+  om <- make_simple_om()
+  sc <- make_scenario()
+  res <- mse_simulation(
+    om,
+    scenarios = sc,
+    n_sims = 1L,
+    n_proj_years = 1L,
+    min_assess_years = 99L,
+    initial_tac = 2 * sum(om$true_params$B_initial),
+    seed = 1
+  )
+  realised_catch <- sum(res$results$test$trajectories$catch[1, 1, ])
+  expect_equal(realised_catch, 2 * sum(om$true_params$B_initial))
+})
+
+test_that("an explicit maximum exploitation rate constrains and records catch", {
+  om <- make_simple_om()
+  om$max_harvest_rate <- 0.8
+  sc <- make_scenario()
+  res <- mse_simulation(
+    om,
+    scenarios = sc,
+    n_sims = 1L,
+    n_proj_years = 1L,
+    min_assess_years = 99L,
+    initial_tac = 2 * sum(om$true_params$B_initial),
+    seed = 1
+  )
+
+  trajectories <- res$results$test$trajectories
+  expected_maximum <- 0.8 * sum(om$true_params$B_initial)
+  expect_equal(sum(trajectories$requested_catch[1, 1, ]),
+    2 * sum(om$true_params$B_initial))
+  expect_equal(sum(trajectories$catch[1, 1, ]), expected_maximum)
+  expect_true(all(trajectories$catch_constrained[1, 1, ]))
+})
+
+test_that("catch-share index weights spatial biomass rather than total biomass", {
+  index_mean <- SurplusProductionModelMSE:::.catch_share_index(
+    biomass = c(100, 10),
+    catch = c(1, 9),
+    q = c(0.01, 0.02)
+  )
+  # 0.1 x 0.01 x 100 + 0.9 x 0.02 x 10 = 0.28.
+  expect_equal(index_mean, 0.28)
 })
 
 test_that(".make_obs_params creates valid obs_error_params", {

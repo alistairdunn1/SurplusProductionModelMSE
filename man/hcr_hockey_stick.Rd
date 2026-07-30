@@ -2,53 +2,22 @@
 % Please edit documentation in R/harvest-control-rules.R
 \name{hcr_hockey_stick}
 \alias{hcr_hockey_stick}
-\title{Hockey-Stick HCR}
+\title{Legacy Alias for Hockey-Stick Exploitation-Rate HCR}
 \usage{
 hcr_hockey_stick(f_target, b_limit, b_target)
 }
 \arguments{
-\item{f_target}{Numeric > 0. Target harvest rate at and above \code{b_target}.}
+\item{f_target}{Numeric > 0. Target annual exploitation rate at and above
+\code{b_target}; the name is retained for backwards compatibility only.}
 
-\item{b_limit}{Numeric in (0, 1). Biomass depletion level (B/K) below which
-catch is zero. Must be less than \code{b_target}.}
+\item{b_limit}{Numeric in (0, 1). Biomass depletion level (B/B0) below
+which catch is zero. Must be less than \code{b_target}.}
 
-\item{b_target}{Numeric in (0, 1). Biomass depletion level (B/K) above which
-the full \code{f_target} is applied.}
-}
-\value{
-A function with signature \code{function(biomass, reference_points)}
-that returns a TAC value. \code{reference_points} must contain \code{K}
-(carrying capacity).
+\item{b_target}{Numeric in (0, 1). Biomass depletion level (B/B0) above
+which the full \code{f_target} exploitation rate is applied.}
 }
 \description{
-Returns a harvest control rule that applies a target harvest rate when
-biomass is above \code{b_target}, linearly ramps down between
-\code{b_limit} and \code{b_target}, and sets catch to zero below
-\code{b_limit}. Biomass thresholds are expressed as fractions of
-\code{reference_points$K} (carrying capacity).
-}
-\details{
-The TAC is computed as:
-\itemize{
-\item If \code{B/K >= b_target}: TAC = \code{f_target * B}
-\item If \code{b_limit < B/K < b_target}: TAC = \code{f_target * B *
-    (B/K - b_limit) / (b_target - b_limit)}
-\item If \code{B/K <= b_limit}: TAC = 0
-}
-}
-\examples{
-hcr <- hcr_hockey_stick(f_target = 0.1, b_limit = 0.2, b_target = 0.4)
-
-# Above target: full F
-hcr(3000, list(K = 5000))
-# B/K = 0.6 > 0.4, TAC = 0.1 * 3000 = 300
-
-# In ramp zone
-hcr(1500, list(K = 5000))
-# B/K = 0.3, TAC = 0.1 * 1500 * (0.3 - 0.2)/(0.4 - 0.2) = 75
-
-# Below limit: zero catch
-hcr(500, list(K = 5000))
-# B/K = 0.1 < 0.2, TAC = 0
-
+\code{hcr_hockey_stick()} is retained for backwards compatibility. Its first
+argument is an annual exploitation rate. Use \code{hcr_hockey_stick_u()} in new
+analyses.
 }

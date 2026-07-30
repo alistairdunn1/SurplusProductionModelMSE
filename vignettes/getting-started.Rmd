@@ -90,7 +90,56 @@ $$
 For our parameters: $B_{\text{MSY}}$ = 2500 t, $F_{\text{MSY}}$ = 0.15,
 MSY = 375 t.
 
-### Step 2 — Choose Harvest Control Rules
+### Step 2 — Build a Historical Data Series
+
+Surplus production models are only weakly identifiable from an index that
+shows little exploitation contrast: fishing the stock near a constant,
+sustainable catch leaves CPUE almost flat, and the estimation model (EM)
+cannot separate $r$ from $K$. In practice an assessment is conditioned on an
+observed history that shows the stock being fished down from an earlier,
+less-exploited state. We construct that history by projecting the operating
+model under a historical catch series with `project_trajectory()`, then
+generating an observed CPUE series from the resulting biomass with
+`simulate_cpue()`:
+
+```{r historical-data}
+set.seed(11)
+
+# Ramp catch up toward and beyond MSY over ten years, then hold near MSY;
+# this depletes the stock from its unfished state and gives the EM genuine
+# contrast from which to estimate r and K.
+historical_catch <- c(seq(100, 650, length.out = 10), rep(375, 5))
+historical_years <- seq_along(historical_catch)
+
+historical_biomass <- project_trajectory(
+  B_initial    = om$true_params$B_initial,
+  catch_series = historical_catch,
+  om_config    = om,
+  seed         = 11
+)
+
+historical_cpue <- simulate_cpue(
+  true_biomass     = historical_biomass[historical_years, 1],
+  obs_error_params = list(sigma = om$true_params$sigma_obs, rho = 0),
+  q                = om$true_params$q,
+  years            = historical_years,
+  seed             = 21
+)
+
+historical_data <- list(
+  catch_data = data.frame(year = historical_years, catch = historical_catch),
+  cpue_data  = data.frame(year = historical_cpue$year, cpue = historical_cpue$cpue)
+)
+
+# The projection phase begins where the historical period ends, not at the
+# unfished state, so the operating model's starting biomass is updated to match.
+om$true_params$B_initial <- tail(historical_biomass[, 1], 1)
+
+cat("Depletion at start of projection:",
+    round(om$true_params$B_initial / om$true_params$K, 2), "K\n")
+```
+
+### Step 3 — Choose Harvest Control Rules
 
 We compare two management strategies: a constant catch rule and a
 hockey-stick rule that reduces catch when biomass declines.
@@ -107,7 +156,7 @@ hcr_hs <- hcr_hockey_stick(
 )
 ```
 
-### Step 3 — Create Scenarios
+### Step 4 — Create Scenarios
 
 Each scenario combines an HCR with optional implementation error. Here we
 add moderate implementation error (CV = 10%, no bias):
@@ -129,11 +178,11 @@ scenarios <- list(
 )
 ```
 
-### Step 4 — Run the MSE
+### Step 5 — Run the MSE
 
-Run 50 stochastic replicates over a 20-year projection horizon. An assessment
-is run each year so that the harvest control rule responds to the estimated
-stock state:
+Run 50 stochastic replicates over a 20-year projection horizon, conditioned on
+the historical data series from Step 2. An assessment is run each year so
+that the harvest control rule responds to the estimated stock state:
 
 ```{r run-mse}
 set.seed(42)
@@ -143,7 +192,8 @@ result <- mse_simulation(
   scenarios        = scenarios,
   n_sims           = 50L,
   n_proj_years     = 20L,
-  min_assess_years = 1L,    # assess each year so the HCR is applied
+  historical_data  = historical_data,
+  min_assess_years = 3L,    # safety floor; already satisfied by historical_data
   initial_tac      = 300,   # catch limit before the first assessment (~0.8 * MSY)
   seed             = 42L,
   verbose          = FALSE
@@ -152,13 +202,18 @@ result <- mse_simulation(
 print(result)
 ```
 
-`min_assess_years = 1L` means an assessment is performed from the first year
-onward, so the harvest control rule is applied each year using the estimated
-biomass, and `initial_tac` sets the catch limit used before the first
-assessment. Because no `estimation_model` is supplied, a default surplus
+Supplying `historical_data` triggers an initial assessment before the
+projection begins, fitted against the historical catch and CPUE series from
+Step 2. `min_assess_years` sets a floor on how much accumulated data is
+needed before any assessment can be fitted, but the historical series already
+exceeds it, so an assessment is performed every subsequent year of the
+projection and the harvest control rule responds to the current estimated
+biomass. `initial_tac` is unused here because the historical assessment
+already supplies a first estimate; it would apply only if `historical_data`
+were omitted. Because no `estimation_model` is supplied, a default surplus
 production estimation model is fitted at each assessment.
 
-### Step 5 — Evaluate Performance
+### Step 6 — Evaluate Performance
 
 Calculate performance metrics for each scenario. The default thresholds
 flag the probability of biomass falling below 50% and 20% of $K$:
@@ -183,7 +238,7 @@ cat("\n=== Hockey Stick ===\n")
 summary(perf_hs)
 ```
 
-### Step 6 — Visualise Trade-Offs
+### Step 7 — Visualise Trade-Offs
 
 The `compare_scenarios()` function creates a trade-off plot with Pareto
 frontier identification. First, attach the performance objects to the MSE
@@ -394,7 +449,3 @@ that all components use one consistent set of reference points.
 - Run `compare_scenarios()` to evaluate Pareto-optimal management strategies
 - Use `equilibrium_f()` to compute equilibrium fishing mortality at any
   depletion level
-
-```{r session-info}
-sessionInfo()
-```

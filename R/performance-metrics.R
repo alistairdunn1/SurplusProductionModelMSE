@@ -5,9 +5,9 @@
 # biomass reference point ratios.
 
 
-#' Compute Equilibrium F at a Given Depletion Level
+#' Compute Equilibrium Exploitation Rate at a Given Depletion Level
 #'
-#' For the Pella-Tomlinson model, calculate the fishing mortality that
+#' For the annual Pella-Tomlinson model, calculate the exploitation rate that
 #' would produce an equilibrium biomass of \code{x * K}.
 #'
 #' @param x Numeric scalar or vector. Depletion fraction(s) (e.g. 0.5
@@ -18,22 +18,22 @@
 #' @param B_unfished Numeric scalar. Unfished biomass (= K for the
 #'   Pella-Tomlinson model). Default \code{K}.
 #'
-#' @return Named numeric vector of equilibrium F values. At equilibrium
-#'   \eqn{F \cdot B = P(B)}, so
-#'   \eqn{F = P(B) / B = \frac{r}{m-1} (1 - (B/K)^{m-1})}.
+#' @return Named numeric vector of equilibrium exploitation-rate values. At
+#'   equilibrium \eqn{U \cdot B = P(B)}, so
+#'   \eqn{U = P(B) / B = \frac{r}{m-1} (1 - (B/K)^{m-1})}.
 #'
 #' @details
-#' The equilibrium depletion F is:
-#' \deqn{F_{x} = \frac{r}{m-1} \left(1 - (x B_\mathrm{unfished} / K)^{m-1}\right)}
+#' The equilibrium depletion U is:
+#' \deqn{U_{x} = \frac{r}{m-1} \left(1 - (x B_\mathrm{unfished} / K)^{m-1}\right)}
 #'
 #' Returns 0 when \eqn{x B_\mathrm{unfished} \geq K} (no production surplus).
 #'
 #' @examples
-#' # F that produces 50% depletion under Schaefer model
-#' equilibrium_f(0.5, r = 0.3, K = 5000, m = 2)
+#' # U that produces 50% depletion under Schaefer model
+#' equilibrium_u(0.5, r = 0.3, K = 5000, m = 2)
 #'
 #' @export
-equilibrium_f <- function(x, r, K, m, B_unfished = K) {
+equilibrium_u <- function(x, r, K, m, B_unfished = K) {
   assert_numeric(x,
     lower = 0, upper = 1, any.missing = FALSE,
     .var.name = "x"
@@ -44,13 +44,25 @@ equilibrium_f <- function(x, r, K, m, B_unfished = K) {
   assert_number(B_unfished, lower = 0)
 
   B_target <- x * B_unfished
-  f_eq <- ifelse(
+  u_eq <- ifelse(
     B_target >= K,
     0,
     SurplusProductionModel::pt_equilibrium_f(r = r, K = K, m = m, biomass = B_target)
   )
-  names(f_eq) <- paste0("F", x * 100, "%K")
-  f_eq
+  names(u_eq) <- paste0("U", x * 100, "%B0")
+  u_eq
+}
+
+#' Legacy alias returning an annual exploitation rate.
+#'
+#' Use \code{equilibrium_u()} in new analyses. This function is retained only
+#' for backwards compatibility with earlier package versions.
+#' @inheritParams equilibrium_u
+#' @export
+equilibrium_f <- function(x, r, K, m, B_unfished = K) {
+  u_eq <- equilibrium_u(x, r, K, m, B_unfished)
+  names(u_eq) <- paste0("F", x * 100, "%K")
+  u_eq
 }
 
 
@@ -86,7 +98,7 @@ equilibrium_f <- function(x, r, K, m, B_unfished = K) {
 #'     \item{biomass_risk}{List of biomass risk metrics per threshold.
 #'       Each has \code{per_year}, \code{final_year}, and \code{ever}
 #'       components (aggregate and per-area).}
-#'     \item{f_risk}{List of F risk metrics per threshold (same
+#'     \item{u_risk}{List of annual exploitation-rate risk metrics per threshold (same
 #'       structure as \code{biomass_risk}).}
 #'     \item{catch_stats}{List with \code{mean_catch},
 #'       \code{median_catch}, \code{sd_catch}, and \code{aav}
@@ -94,9 +106,10 @@ equilibrium_f <- function(x, r, K, m, B_unfished = K) {
 #'     \item{biomass_ratios}{List with \code{mean_depletion} (B/K),
 #'       \code{mean_b_bmsy} (B/BMSY), \code{final_depletion},
 #'       \code{final_b_bmsy} (aggregate and per-area).}
-#'     \item{reference}{List of reference values: \code{K}, \code{K_area},
-#'       \code{B_initial}, \code{BMSY}, \code{FMSY}, \code{MSY},
-#'       \code{thresholds}, \code{f_thresholds}.}
+#'     \item{reference}{List of reference values: true spatial \code{B0},
+#'       \code{K_area}, \code{B_initial}, \code{BMSY}, \code{UMSY},
+#'       \code{MSY}, \code{thresholds}, and \code{u_thresholds}. Legacy
+#'       F-labelled elements are retained as aliases for compatibility.}
 #'     \item{n_sims}{Number of simulations.}
 #'     \item{n_years}{Number of projection years.}
 #'     \item{n_areas}{Number of areas.}
@@ -178,12 +191,12 @@ calculate_performance_metrics <- function(trajectories,
     r = r, K = K, m = m
   )
   BMSY <- rp$bmsy
-  FMSY <- rp$fmsy
+  UMSY <- rp$fmsy
   MSY <- rp$msy
 
-  # F thresholds: equilibrium F at each depletion level, using the
+  # U thresholds: equilibrium exploitation rate at each depletion level, using the
   # status baseline biomass reference.
-  f_thresholds <- equilibrium_f(thresholds, r = r, K = K, m = m, B_unfished = K_total)
+  u_thresholds <- equilibrium_u(thresholds, r = r, K = K, m = m, B_unfished = K_total)
 
   # --- Aggregate biomass/catch/F: sum across areas ---
   biomass_agg <- apply(biomass, c(1, 2), sum) # [n_sims x n_years]
@@ -213,25 +226,23 @@ calculate_performance_metrics <- function(trajectories,
     biomass_risk[[lbl]] <- list(aggregate = agg, by_area = area_results)
   }
 
-  # --- F risk metrics ---
-  f_risk <- list()
+  # --- Exploitation-rate risk metrics ---
+  u_risk <- list()
   for (i in seq_along(thresholds)) {
     thresh <- thresholds[i]
-    lbl <- paste0("F", thresh * 100, "%K")
-    f_limit <- f_thresholds[i]
+    lbl <- paste0("U", thresh * 100, "%B0")
+    u_limit <- u_thresholds[i]
 
-    # For F risk, we want Pr(F > F_limit) — probability that fishing
-    # mortality EXCEEDS the limit F. This is the "risk" interpretation:
-    # the F threshold is a limit, and exceeding it is dangerous.
-    agg <- .risk_metrics_above(harvest_rate_agg, f_limit)
+    # Exceeding the depletion-specific exploitation-rate limit is the risk.
+    agg <- .risk_metrics_above(harvest_rate_agg, u_limit)
 
     area_results <- vector("list", n_areas)
     for (a in seq_len(n_areas)) {
-      area_results[[a]] <- .risk_metrics_above(harvest_rate[, , a], f_limit)
+      area_results[[a]] <- .risk_metrics_above(harvest_rate[, , a], u_limit)
     }
     names(area_results) <- paste0("A", seq_len(n_areas))
 
-    f_risk[[lbl]] <- list(aggregate = agg, by_area = area_results)
+    u_risk[[lbl]] <- list(aggregate = agg, by_area = area_results)
   }
 
   # --- Catch statistics ---
@@ -273,10 +284,19 @@ calculate_performance_metrics <- function(trajectories,
   )
   names(biomass_ratios$by_area) <- paste0("A", seq_len(n_areas))
 
+  # Legacy F-labelled objects retain their historic names for downstream
+  # compatibility. Their values are annual exploitation rates and new code
+  # should use u_risk and u_thresholds.
+  f_risk_legacy <- u_risk
+  names(f_risk_legacy) <- paste0("F", thresholds * 100, "%K")
+  f_thresholds_legacy <- u_thresholds
+  names(f_thresholds_legacy) <- paste0("F", thresholds * 100, "%K")
+
   structure(
     list(
       biomass_risk = biomass_risk,
-      f_risk = f_risk,
+      u_risk = u_risk,
+      f_risk = f_risk_legacy,
       catch_stats = catch_stats,
       biomass_ratios = biomass_ratios,
       reference = list(
@@ -286,10 +306,12 @@ calculate_performance_metrics <- function(trajectories,
         carrying_capacity = K_cc, # aggregate carrying capacity (production K)
         B_initial         = sum(B_initial_area), # OM initial biomass (start of series)
         BMSY              = BMSY,
-        FMSY              = FMSY,
+        UMSY              = UMSY,
+        FMSY              = UMSY,
         MSY               = MSY,
         thresholds        = thresholds,
-        f_thresholds      = f_thresholds
+        u_thresholds      = u_thresholds,
+        f_thresholds      = f_thresholds_legacy
       ),
       n_sims = n_sims,
       n_years = n_years,
@@ -482,14 +504,14 @@ print.mse_performance <- function(x, ...) {
     ))
   }
 
-  # F risk
-  cat("\nF Risk (Pr(F > F_limit)):\n")
-  for (nm in names(x$f_risk)) {
-    agg <- x$f_risk[[nm]]$aggregate
-    f_val <- x$reference$f_thresholds[match(nm, names(x$reference$f_thresholds))]
+  # Exploitation-rate risk
+  cat("\nExploitation-rate Risk (Pr(U > U_limit)):\n")
+  for (nm in names(x$u_risk)) {
+    agg <- x$u_risk[[nm]]$aggregate
+    u_val <- x$reference$u_thresholds[match(nm, names(x$reference$u_thresholds))]
     cat(sprintf(
-      "  %-12s (F=%.4f)  final_year: %.3f  ever: %.3f\n",
-      nm, f_val, agg$final_year, agg$ever
+      "  %-12s (U=%.4f)  final_year: %.3f  ever: %.3f\n",
+      nm, u_val, agg$final_year, agg$ever
     ))
   }
 
@@ -515,8 +537,8 @@ print.mse_performance <- function(x, ...) {
   # Reference points
   ref <- x$reference
   cat(sprintf(
-    "\nReference: K=%.0f  BMSY=%.0f  FMSY=%.4f  MSY=%.0f\n",
-    ref$K, ref$BMSY, ref$FMSY, ref$MSY
+    "\nReference: B0=%.0f  BMSY=%.0f  UMSY=%.4f  MSY=%.0f\n",
+    ref$B0, ref$BMSY, ref$UMSY, ref$MSY
   ))
 
   invisible(x)
@@ -567,28 +589,28 @@ summary.mse_performance <- function(object, ...) {
     }
   }
 
-  # F risk
-  for (nm in names(object$f_risk)) {
-    agg <- object$f_risk[[nm]]$aggregate
+  # Exploitation-rate risk
+  for (nm in names(object$u_risk)) {
+    agg <- object$u_risk[[nm]]$aggregate
     rows[[length(rows) + 1]] <- data.frame(
-      metric = paste0("Pr(F>", nm, ")_final"),
+      metric = paste0("Pr(U>", nm, ")_final"),
       scope = "aggregate", value = agg$final_year,
       stringsAsFactors = FALSE
     )
     rows[[length(rows) + 1]] <- data.frame(
-      metric = paste0("Pr(F>", nm, ")_ever"),
+      metric = paste0("Pr(U>", nm, ")_ever"),
       scope = "aggregate", value = agg$ever,
       stringsAsFactors = FALSE
     )
-    for (anm in names(object$f_risk[[nm]]$by_area)) {
-      ar <- object$f_risk[[nm]]$by_area[[anm]]
+    for (anm in names(object$u_risk[[nm]]$by_area)) {
+      ar <- object$u_risk[[nm]]$by_area[[anm]]
       rows[[length(rows) + 1]] <- data.frame(
-        metric = paste0("Pr(F>", nm, ")_final"),
+        metric = paste0("Pr(U>", nm, ")_final"),
         scope = anm, value = ar$final_year,
         stringsAsFactors = FALSE
       )
       rows[[length(rows) + 1]] <- data.frame(
-        metric = paste0("Pr(F>", nm, ")_ever"),
+        metric = paste0("Pr(U>", nm, ")_ever"),
         scope = anm, value = ar$ever,
         stringsAsFactors = FALSE
       )

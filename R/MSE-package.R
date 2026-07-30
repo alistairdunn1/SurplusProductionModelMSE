@@ -63,4 +63,8 @@
 #' @docType package
 #' @name SurplusProductionModelMSE-package
 #' @keywords internal
+#' @import checkmate
+#' @import ggplot2
+#' @importFrom stats median rnorm runif sd
+#' @importFrom utils flush.console tail
 "_PACKAGE"

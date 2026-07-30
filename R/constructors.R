@@ -21,6 +21,9 @@
 #'   \code{r}, \code{K}, \code{m}, \code{sigma_obs}, \code{q}, \code{B_initial}.
 #'   \code{q} and \code{B_initial} may be scalar or per-area vectors. If \code{NULL},
 #'   parameters must be supplied separately.
+#' @param max_harvest_rate Optional maximum realised annual exploitation rate.
+#'   \code{NULL} (default) applies no additional catch cap. Supply a value in
+#'   \code{(0, 1]} only to represent a documented implementation constraint.
 #'
 #' @return An S3 object of class \code{om_config}.
 #'
@@ -53,7 +56,8 @@ om_config <- function(n_areas = 1L,
                       movement_cost_matrix = NULL,
                       attractiveness = NULL,
                       decay = 0,
-                      true_params = NULL) {
+                      true_params = NULL,
+                      max_harvest_rate = NULL) {
   assert_count(n_areas, positive = TRUE, .var.name = "n_areas")
 
   obj <- structure(
@@ -63,7 +67,8 @@ om_config <- function(n_areas = 1L,
       movement_cost_matrix = movement_cost_matrix,
       attractiveness = attractiveness,
       decay = decay,
-      true_params = true_params
+      true_params = true_params,
+      max_harvest_rate = max_harvest_rate
     ),
     class = "om_config"
   )
@@ -88,6 +93,9 @@ print.om_config <- function(x, ...) {
     )
   }
   cat("  Decay:         ", x$decay, "\n")
+  if (!is.null(x$max_harvest_rate)) {
+    cat("  Maximum realised U:", x$max_harvest_rate, "\n")
+  }
   if (!is.null(x$true_params)) {
     tp <- x$true_params
     cat("  True parameters:\n")
@@ -123,6 +131,20 @@ print.om_config <- function(x, ...) {
 #' @param fixed_params Named list of parameters to fix (not estimate) in the EM.
 #'   For example, \code{list(m = 2)} to fix the Schaefer shape. \code{NULL}
 #'   means all parameters are estimated.
+#' @param control Optional optimiser control list passed through to
+#'   \code{\link[SurplusProductionModel]{fit_pella_tomlinson_model}}.
+#' @param n_starts Integer >= 1. Number of random-restart optimiser runs
+#'   passed through to
+#'   \code{\link[SurplusProductionModel]{fit_pella_tomlinson_model}} (default
+#'   \code{1}).
+#' @param calculate_se Logical. Whether to compute parameter standard errors
+#'   during EM fitting (default \code{FALSE}).
+#' @param priors Optional named list of priors passed through to
+#'   \code{\link[SurplusProductionModel]{fit_pella_tomlinson_model}}.
+#' @param initial_depletion Optional starting biomass depletion for the
+#'   estimation model. Supply an assessment-derived value when the simulated
+#'   series begins from an already exploited stock. If \code{NULL}, initial
+#'   depletion is estimated or controlled through \code{fixed_params}/priors.
 #'
 #' @return An S3 object of class \code{em_config}.
 #'
@@ -143,7 +165,8 @@ em_config <- function(n_areas = 1L,
                       control = NULL,
                       n_starts = 1L,
                       calculate_se = FALSE,
-                      priors = NULL) {
+                      priors = NULL,
+                      initial_depletion = NULL) {
   assert_count(n_areas, positive = TRUE, .var.name = "n_areas")
   assert_flag(process_noise, .var.name = "process_noise")
   process_error_structure <- match.arg(
@@ -162,7 +185,8 @@ em_config <- function(n_areas = 1L,
       control = control,
       n_starts = as.integer(n_starts),
       calculate_se = calculate_se,
-      priors = priors
+      priors = priors,
+      initial_depletion = initial_depletion
     ),
     class = "em_config"
   )
@@ -343,9 +367,10 @@ print.mse_scenario <- function(x, ...) {
 #' Create baseline scenarios for MSE runs
 #'
 #' Construct the standard baseline scenario set used in workflow scripts:
-#' no-catch, constant-F, and two hockey-stick variants.
+#' no-catch, constant annual exploitation rate, and two hockey-stick variants.
 #'
-#' @param f_target Positive numeric scalar for target fishing mortality.
+#' @param f_target Positive numeric scalar for target annual exploitation rate.
+#'   The argument name is retained for backwards compatibility.
 #' @param assessment_frequency Integer >= 1 giving assessment interval in years.
 #' @param catch_allocation Optional numeric vector of non-negative area weights.
 #'
@@ -415,7 +440,8 @@ create_baseline_scenarios <- function(f_target,
 #' Construct a flattened list of scenarios over an `f_grid` for selected
 #' harvest-control-rule families.
 #'
-#' @param f_grid Numeric vector of positive F targets.
+#' @param f_grid Numeric vector of positive annual exploitation-rate targets.
+#'   The argument and family names are retained for backwards compatibility.
 #' @param assessment_frequency Integer >= 1 giving assessment interval in years.
 #' @param catch_allocation Optional numeric vector of non-negative area weights.
 #' @param include Character vector of HCR families to include. Allowed values are

@@ -11,7 +11,8 @@ create_baseline_scenarios(
 )
 }
 \arguments{
-\item{f_target}{Positive numeric scalar for target fishing mortality.}
+\item{f_target}{Positive numeric scalar for target annual exploitation rate.
+The argument name is retained for backwards compatibility.}
 
 \item{assessment_frequency}{Integer >= 1 giving assessment interval in years.}
 
@@ -22,5 +23,5 @@ A named list of \code{mse_scenario} objects.
 }
 \description{
 Construct the standard baseline scenario set used in workflow scripts:
-no-catch, constant-F, and two hockey-stick variants.
+no-catch, constant annual exploitation rate, and two hockey-stick variants.
 }

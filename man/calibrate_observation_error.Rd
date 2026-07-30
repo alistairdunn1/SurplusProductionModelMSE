@@ -21,11 +21,21 @@ of residuals.}
 for single-index models.}
 \item{n_obs}{Integer (scalar or per-index vector). Number of
 non-missing observations used.}
+\item{by_series}{Data frame of the within-area (and, where relevant,
+within-index) estimates used to construct the aggregate parameters.}
 }
 }
 \description{
 Extract residual statistics from a fitted \code{ProductionModel} to
 parameterise observation error for MSE simulations.
+}
+\details{
+Temporal autocorrelation is estimated separately for each area/index time
+series, retaining only consecutive finite residual pairs. Area-specific
+residual variances are pooled using their residual degrees of freedom.
+Lag-one correlations are pooled on the Fisher z scale, weighted by the
+number of consecutive residual pairs. This avoids treating transitions
+between areas as temporal observations.
 }
 \examples{
 \dontrun{

@@ -2,25 +2,17 @@
 % Please edit documentation in R/harvest-control-rules.R
 \name{hcr_constant_f}
 \alias{hcr_constant_f}
-\title{Constant Harvest Rate HCR}
+\title{Legacy Alias for Constant Exploitation-Rate HCR}
 \usage{
 hcr_constant_f(f_target)
 }
 \arguments{
-\item{f_target}{Numeric > 0. Target harvest rate (fraction of biomass
-removed per year).}
-}
-\value{
-A function with signature \code{function(biomass, reference_points)}
-that returns TAC = \code{f_target * biomass}.
+\item{f_target}{Numeric > 0. Target annual exploitation rate; the name is
+retained for backwards compatibility only and is not an instantaneous
+fishing mortality.}
 }
 \description{
-Returns a harvest control rule that applies a constant fishing mortality rate
-to the current biomass estimate.
-}
-\examples{
-hcr <- hcr_constant_f(0.1)
-hcr(1000, list(BMSY = 500))
-# Returns 100
-
+\code{hcr_constant_f()} is retained for backwards compatibility. Its argument is
+an annual exploitation rate, not instantaneous fishing mortality. Use
+\code{hcr_constant_u()} in new analyses.
 }

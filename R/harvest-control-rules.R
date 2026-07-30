@@ -4,30 +4,46 @@
 # that returns a TAC (Total Allowable Catch) value.
 
 
-#' Constant Harvest Rate HCR
+#' Constant Exploitation-Rate HCR
 #'
-#' Returns a harvest control rule that applies a constant fishing mortality rate
-#' to the current biomass estimate.
+#' Returns a harvest control rule that applies a constant annual exploitation
+#' rate to the current biomass estimate.
 #'
-#' @param f_target Numeric > 0. Target harvest rate (fraction of biomass
+#' @param u_target Numeric > 0. Target exploitation rate (fraction of biomass
 #'   removed per year).
 #'
 #' @return A function with signature \code{function(biomass, reference_points)}
-#'   that returns TAC = \code{f_target * biomass}.
+#'   that returns TAC = \code{u_target * biomass}.
 #'
 #' @examples
-#' hcr <- hcr_constant_f(0.1)
+#' hcr <- hcr_constant_u(0.1)
 #' hcr(1000, list(BMSY = 500))
 #' # Returns 100
 #'
 #' @export
-hcr_constant_f <- function(f_target) {
-  assert_number(f_target, lower = .Machine$double.eps, .var.name = "f_target")
+hcr_constant_u <- function(u_target) {
+  assert_number(u_target, lower = .Machine$double.eps, .var.name = "u_target")
 
   function(biomass, reference_points) {
-    tac <- f_target * biomass
+    tac <- u_target * biomass
     max(0, tac)
   }
+}
+
+
+#' Legacy Alias for Constant Exploitation-Rate HCR
+#'
+#' `hcr_constant_f()` is retained for backwards compatibility. Its argument is
+#' an annual exploitation rate, not instantaneous fishing mortality. Use
+#' \code{hcr_constant_u()} in new analyses.
+#'
+#' @param f_target Numeric > 0. Target annual exploitation rate; the name is
+#'   retained for backwards compatibility only and is not an instantaneous
+#'   fishing mortality.
+#'
+#' @export
+hcr_constant_f <- function(f_target) {
+  hcr_constant_u(f_target)
 }
 
 
@@ -62,31 +78,32 @@ hcr_constant_catch <- function(catch_target) {
 }
 
 
-#' Hockey-Stick HCR
+#' Hockey-Stick Exploitation-Rate HCR
 #'
 #' Returns a harvest control rule that applies a target harvest rate when
 #' biomass is above \code{b_target}, linearly ramps down between
 #' \code{b_limit} and \code{b_target}, and sets catch to zero below
-#' \code{b_limit}. Biomass thresholds are expressed as fractions of
-#' \code{reference_points$K} (carrying capacity).
+#' \code{b_limit}. Biomass thresholds are expressed as fractions of the
+#' observable estimation-model proxy \code{reference_points$B0}. The legacy
+#' \code{K} element is accepted for backwards compatibility.
 #'
-#' @param f_target Numeric > 0. Target harvest rate at and above \code{b_target}.
-#' @param b_limit Numeric in (0, 1). Biomass depletion level (B/K) below which
+#' @param u_target Numeric > 0. Target exploitation rate at and above \code{b_target}.
+#' @param b_limit Numeric in (0, 1). Biomass depletion level (B/B0) below which
 #'   catch is zero. Must be less than \code{b_target}.
-#' @param b_target Numeric in (0, 1). Biomass depletion level (B/K) above which
-#'   the full \code{f_target} is applied.
+#' @param b_target Numeric in (0, 1). Biomass depletion level (B/B0) above which
+#'   the full \code{u_target} is applied.
 #'
 #' @return A function with signature \code{function(biomass, reference_points)}
-#'   that returns a TAC value. \code{reference_points} must contain \code{K}
-#'   (carrying capacity).
+#'   that returns a TAC value. \code{reference_points} must contain \code{B0},
+#'   the EM-derived observable biomass reference.
 #'
 #' @details
 #' The TAC is computed as:
 #' \itemize{
-#'   \item If \code{B/K >= b_target}: TAC = \code{f_target * B}
-#'   \item If \code{b_limit < B/K < b_target}: TAC = \code{f_target * B *
-#'     (B/K - b_limit) / (b_target - b_limit)}
-#'   \item If \code{B/K <= b_limit}: TAC = 0
+#'   \item If \code{B/B0 >= b_target}: TAC = \code{u_target * B}
+#'   \item If \code{b_limit < B/B0 < b_target}: TAC = \code{u_target * B *
+#'     (B/B0 - b_limit) / (b_target - b_limit)}
+#'   \item If \code{B/B0 <= b_limit}: TAC = 0
 #' }
 #'
 #' @examples
@@ -105,8 +122,8 @@ hcr_constant_catch <- function(catch_target) {
 #' # B/K = 0.1 < 0.2, TAC = 0
 #'
 #' @export
-hcr_hockey_stick <- function(f_target, b_limit, b_target) {
-  assert_number(f_target, lower = .Machine$double.eps, .var.name = "f_target")
+hcr_hockey_stick_u <- function(u_target, b_limit, b_target) {
+  assert_number(u_target, lower = .Machine$double.eps, .var.name = "u_target")
   assert_number(b_limit,
     lower = .Machine$double.eps, upper = 1,
     .var.name = "b_limit"
@@ -123,24 +140,69 @@ hcr_hockey_stick <- function(f_target, b_limit, b_target) {
   }
 
   function(biomass, reference_points) {
-    K <- reference_points$K
-    if (is.null(K) || !is.finite(K) || K <= 0) {
-      stop("reference_points must contain positive finite 'K'", call. = FALSE)
+    B0 <- reference_points$B0 %||% reference_points$K
+    if (is.null(B0) || !is.finite(B0) || B0 <= 0) {
+      stop("reference_points must contain positive finite 'B0' (legacy alias: 'K')", call. = FALSE)
     }
 
-    depletion <- biomass / K
+    depletion <- biomass / B0
 
     if (depletion >= b_target) {
-      tac <- f_target * biomass
+      tac <- u_target * biomass
     } else if (depletion > b_limit) {
       multiplier <- (depletion - b_limit) / (b_target - b_limit)
-      tac <- f_target * biomass * multiplier
+      tac <- u_target * biomass * multiplier
     } else {
       tac <- 0
     }
 
     max(0, tac)
   }
+}
+
+
+#' Legacy Alias for Hockey-Stick Exploitation-Rate HCR
+#'
+#' `hcr_hockey_stick()` is retained for backwards compatibility. Its first
+#' argument is an annual exploitation rate. Use \code{hcr_hockey_stick_u()} in new
+#' analyses.
+#'
+#' @param f_target Numeric > 0. Target annual exploitation rate at and above
+#'   \code{b_target}; the name is retained for backwards compatibility only.
+#' @param b_limit Numeric in (0, 1). Biomass depletion level (B/B0) below
+#'   which catch is zero. Must be less than \code{b_target}.
+#' @param b_target Numeric in (0, 1). Biomass depletion level (B/B0) above
+#'   which the full \code{f_target} exploitation rate is applied.
+#'
+#' @export
+hcr_hockey_stick <- function(f_target, b_limit, b_target) {
+  hcr_hockey_stick_u(f_target, b_limit, b_target)
+}
+
+
+#' Convert an annual exploitation rate to instantaneous fishing mortality
+#'
+#' This conversion is required when a selected annual exploitation-rate HCR is
+#' implemented in Casal2 using a Baranov fishing-mortality parametrisation.
+#'
+#' @param u Annual exploitation rate in [0, 1).
+#' @return Instantaneous fishing mortality, `-log(1 - u)`.
+#' @export
+u_to_f <- function(u) {
+  assert_numeric(u, lower = 0, upper = 1, .var.name = "u")
+  if (any(u >= 1)) stop("u must be less than one for conversion to F", call. = FALSE)
+  -log1p(-u)
+}
+
+
+#' Convert instantaneous fishing mortality to an annual exploitation rate
+#'
+#' @param f Instantaneous fishing mortality, non-negative.
+#' @return Annual exploitation rate, `1 - exp(-f)`.
+#' @export
+f_to_u <- function(f) {
+  assert_numeric(f, lower = 0, .var.name = "f")
+  -expm1(-f)
 }
 
 

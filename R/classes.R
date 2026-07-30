@@ -103,6 +103,13 @@ validate_om_config <- function(x) {
     )
   }
 
+  if (!is.null(x$max_harvest_rate)) {
+    assert_number(x$max_harvest_rate,
+      lower = .Machine$double.eps, upper = 1,
+      .var.name = "max_harvest_rate"
+    )
+  }
+
   invisible(TRUE)
 }
 
@@ -119,7 +126,8 @@ validate_em_config <- function(x) {
 
   required <- c(
     "n_areas", "estimate_movement", "aggregate_areas",
-    "process_noise", "process_error_structure", "fixed_params"
+    "process_noise", "process_error_structure", "fixed_params",
+    "initial_depletion"
   )
   missing_fields <- setdiff(required, names(x))
   if (length(missing_fields) > 0) {
@@ -144,6 +152,12 @@ validate_em_config <- function(x) {
 
   if (!is.null(x$fixed_params)) {
     assert_list(x$fixed_params, names = "named", .var.name = "fixed_params")
+  }
+  if (!is.null(x$initial_depletion)) {
+    assert_number(x$initial_depletion,
+      lower = .Machine$double.eps, upper = 1,
+      .var.name = "initial_depletion"
+    )
   }
 
   invisible(TRUE)

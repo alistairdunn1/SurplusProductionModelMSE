@@ -85,3 +85,12 @@ compare_scenarios(result, "mean_catch", "Pr(B<20%K)_ever")
 - [checkmate](https://CRAN.R-project.org/package=checkmate) — input validation
 - [ggplot2](https://CRAN.R-project.org/package=ggplot2) — visualisation
 - [future](https://CRAN.R-project.org/package=future) / [future.apply](https://CRAN.R-project.org/package=future.apply) — parallel processing (optional)
+
+## Citation
+
+If you use this package in your research, please cite:
+
+```
+Dunn, A. (2026). SurplusProductionModelMSE: Management Strategy Evaluation.
+R package version 0.1.3. https://github.com/alistairdunn1/SurplusProductionModelMSE
+```

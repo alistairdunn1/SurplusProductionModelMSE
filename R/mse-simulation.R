@@ -25,8 +25,14 @@
 #'   \code{\link{calibrate_observation_error}}, or \code{NULL} to
 #'   construct from \code{operating_model$true_params$sigma_obs}
 #'   with zero autocorrelation.
-#' @param initial_tac Numeric scalar. TAC used before the first
-#'   assessment. This must be supplied explicitly by the caller.
+#' @param initial_tac Numeric scalar. TAC used before the first assessment
+#'   when \code{historical_data} is \code{NULL}. This must be supplied
+#'   explicitly by the caller.
+#' @param historical_data Optional named list containing \code{cpue_data} and
+#'   \code{catch_data}, each with \code{year} and respectively \code{cpue} or
+#'   \code{catch} columns. These are the historical aggregate observations
+#'   available to the EM at the projection start. When supplied, the EM is fit
+#'   to these data and the HCR sets the first projected TAC.
 #' @param min_assess_years Integer. Minimum number of accumulated
 #'   data years before the first EM fit (default 5).
 #' @param parallel Logical. Use \pkg{future.apply} for parallel
@@ -51,7 +57,10 @@
 #' \code{[n_sims x n_proj_years x n_areas]} for per-area metrics
 #' (biomass, catch, harvest_rate) and
 #' \code{[n_sims x n_proj_years]} for aggregate metrics
-#' (tac, estimated_biomass).
+#' (tac, estimated_biomass). When an explicit maximum exploitation rate is
+#' configured, trajectories also contain \code{requested_catch} and
+#' \code{catch_constrained}, which record the catch before the constraint and
+#' whether it bound in each area, respectively.
 #'
 #' @details
 #' The simulation loop for each replicate and year proceeds as:
@@ -60,8 +69,8 @@
 #'   \item If an assessment year and enough data have accumulated,
 #'     fit the estimation model to accumulated CPUE and catch,
 #'     then apply the harvest control rule to set the TAC.
-#'     Convergence failures are handled gracefully by retaining
-#'     the previous assessment result.
+#'     A failed or invalid estimation-model fit stops the simulation with an
+#'     error.
 #'   \item Apply implementation error to the TAC to obtain
 #'     realized catch.
 #'   \item Generate a CPUE observation and record catch for the
@@ -70,7 +79,20 @@
 #' }
 #'
 #' Between assessments the most recent TAC is carried forward.
-#' Before the first assessment, \code{initial_tac} is used.
+#' Without historical data, \code{initial_tac} is used before the first
+#' assessment. With historical data, the first projected TAC is set by an
+#' initial EM fit and HCR application. Future projection years follow the last
+#' historical year.
+#' A failed or invalid estimation-model fit stops the simulation with an error.
+#' No management fallback uses operating-model truth, a previous assessment,
+#' or a substituted TAC. HCR biomass and reference points are derived from the
+#' estimation model; true spatial \eqn{B_0} is used only for performance
+#' evaluation. Realised catch is capped only when
+#' \code{operating_model$max_harvest_rate} is explicitly supplied.
+#' For multi-area operating models, the aggregate fishery-dependent index uses
+#' year-specific realised catch shares as a proxy for the spatial observation
+#' footprint: \eqn{I_t = \sum_a w_{a,t} q_a B_{a,t}}, where
+#' \eqn{w_{a,t} = C_{a,t}/\sum_a C_{a,t}}.
 #'
 #' @examples
 #' \dontrun{
@@ -97,6 +119,7 @@ mse_simulation <- function(operating_model,
                            n_proj_years = 20L,
                            obs_error_params = NULL,
                            initial_tac,
+                           historical_data = NULL,
                            min_assess_years = 5L,
                            parallel = FALSE,
                            seed = NULL,
@@ -153,6 +176,7 @@ mse_simulation <- function(operating_model,
     )
   }
   assert_number(initial_tac, lower = 0, .var.name = "initial_tac")
+  historical_data <- .validate_historical_data(historical_data)
 
   # --- Pre-compute movement kernel ---
   movement_kernel <- NULL
@@ -212,6 +236,7 @@ mse_simulation <- function(operating_model,
         obs_error_params = obs_error_params,
         movement_kernel  = movement_kernel,
         initial_tac      = initial_tac,
+        historical_data  = historical_data,
         min_assess_years = min_assess_years,
         tp               = tp
       )
@@ -266,8 +291,12 @@ mse_simulation <- function(operating_model,
       sim_results, n_sims, n_proj_years, n_areas
     )
 
-    first_assessment_year <- as.integer(min_assess_years + 1L)
-    while ((first_assessment_year %% scenario$assessment_frequency) != 0L) {
+    first_assessment_year <- if (is.null(historical_data)) {
+      as.integer(min_assess_years + 1L)
+    } else {
+      1L
+    }
+    while (is.null(historical_data) && (first_assessment_year %% scenario$assessment_frequency) != 0L) {
       first_assessment_year <- first_assessment_year + 1L
     }
     # When the first assessment falls beyond the projection horizon (short
@@ -296,6 +325,8 @@ mse_simulation <- function(operating_model,
       em_config    = estimation_model,
       n_sims       = n_sims,
       n_proj_years = n_proj_years,
+      historical_data = historical_data,
+      projection_years = if (is.null(historical_data)) seq_len(n_proj_years) else max(historical_data$catch_data$year) + seq_len(n_proj_years),
       call         = cl
     ),
     class = "mse_result"
@@ -324,25 +355,72 @@ mse_simulation <- function(operating_model,
 
 #' Build reference_points list for HCR calls
 #'
-#' Translates EM output (or true parameter fallback) into the named list
-#' expected by HCR closures: K, MSY, BMSY, FMSY.
+#' Translates a successful EM output into the observable quantities expected by
+#' HCR closures. B0 is an EM proxy, whereas OM B0 is reserved for performance
+#' evaluation.
 #' @noRd
 .build_hcr_ref_points <- function(em_result, tp) {
-  if (!is.null(em_result)) {
-    list(
-      K    = em_result$K,
-      MSY  = em_result$msy,
-      BMSY = em_result$bmsy,
-      FMSY = em_result$fmsy
-    )
-  } else {
-    # Fallback to true parameters, using the canonical Pella-Tomlinson
-    # reference points shared with the assessment package.
-    rp <- SurplusProductionModel::pella_tomlinson_reference_points(
-      r = tp$r, K = tp$K, m = tp$m
-    )
-    list(K = tp$K, MSY = rp$msy, BMSY = rp$bmsy, FMSY = rp$fmsy)
+  if (is.null(em_result)) {
+    stop("A successful estimation-model result is required before applying an HCR", call. = FALSE)
   }
+  b0_proxy <- em_result$b0_proxy %||% em_result$K
+  umsy <- em_result$umsy %||% em_result$fmsy
+  list(
+    B0 = b0_proxy,
+    B0_proxy = b0_proxy,
+    K = b0_proxy,
+    MSY = em_result$msy,
+    BMSY = em_result$bmsy,
+    UMSY = umsy,
+    FMSY = umsy
+  )
+}
+
+
+#' Validate historical aggregate EM inputs
+#' @noRd
+.validate_historical_data <- function(historical_data) {
+  if (is.null(historical_data)) {
+    return(NULL)
+  }
+  if (!is.list(historical_data) ||
+    !all(c("cpue_data", "catch_data") %in% names(historical_data))) {
+    stop("historical_data must be a list containing cpue_data and catch_data", call. = FALSE)
+  }
+
+  cpue_data <- as.data.frame(historical_data$cpue_data)
+  catch_data <- as.data.frame(historical_data$catch_data)
+  if (!all(c("year", "cpue") %in% names(cpue_data))) {
+    stop("historical_data$cpue_data must contain year and cpue columns", call. = FALSE)
+  }
+  if (!all(c("year", "catch") %in% names(catch_data))) {
+    stop("historical_data$catch_data must contain year and catch columns", call. = FALSE)
+  }
+
+  cpue_data <- cpue_data[, c("year", "cpue"), drop = FALSE]
+  catch_data <- catch_data[, c("year", "catch"), drop = FALSE]
+  if (nrow(cpue_data) < 2L || nrow(catch_data) < 2L) {
+    stop("historical_data must contain at least two years of CPUE and catch data", call. = FALSE)
+  }
+  if (any(!is.finite(cpue_data$year)) || any(!is.finite(catch_data$year)) ||
+    any(cpue_data$year != as.integer(cpue_data$year)) ||
+    any(catch_data$year != as.integer(catch_data$year))) {
+    stop("historical_data years must be finite integers", call. = FALSE)
+  }
+  if (any(!is.finite(cpue_data$cpue)) || any(cpue_data$cpue <= 0) ||
+    any(!is.finite(catch_data$catch)) || any(catch_data$catch < 0)) {
+    stop("historical_data CPUE must be positive and catch must be non-negative finite values", call. = FALSE)
+  }
+  if (anyDuplicated(cpue_data$year) > 0 || anyDuplicated(catch_data$year) > 0) {
+    stop("historical_data must contain at most one CPUE and catch observation per year", call. = FALSE)
+  }
+
+  cpue_data <- cpue_data[order(cpue_data$year), , drop = FALSE]
+  catch_data <- catch_data[order(catch_data$year), , drop = FALSE]
+  if (!all(cpue_data$year %in% catch_data$year)) {
+    stop("historical_data CPUE years must be contained in the catch history", call. = FALSE)
+  }
+  list(cpue_data = cpue_data, catch_data = catch_data)
 }
 
 
@@ -384,10 +462,11 @@ mse_simulation <- function(operating_model,
 }
 
 
-#' Safely fit the estimation model
+#' Fit the estimation model
 #'
-#' Wraps \code{fit_pella_tomlinson_model} in tryCatch so convergence
-#' failures return \code{NULL} instead of propagating errors.
+#' Estimation-model failure is an invalid management-strategy simulation and
+#' is therefore propagated as an error. The simulation must never substitute
+#' a previous assessment, an initial TAC, or operating-model truth.
 #' @noRd
 .fit_em_safely <- function(cpue_history, catch_history, em_config,
                            om_config) {
@@ -431,85 +510,69 @@ mse_simulation <- function(operating_model,
     }
   }
 
-  # Assume an unfished start in the estimation model by default (fix initial
-  # depletion d0 = 1). The accumulating in-loop series is short and provides
-  # little contrast, so K, q and d0 are jointly unidentifiable and a free d0
-  # yields unstable biomass estimates. Fixing d0 = 1 gives the EM a well-posed
-  # scale reference (equivalent to the conventional unfished-start assumption).
-  # Callers can override by supplying d0 in em_config$fixed_params or a prior.
-  if (is.null(fixed_params) || !("log_d0" %in% names(fixed_params))) {
-    fixed_params <- c(fixed_params, list(log_d0 = 0))
+  # A simulation that begins from an exploited stock must not silently treat
+  # the first projected year as unfished. An assessment-derived initial
+  # depletion may be supplied explicitly; otherwise d0 remains estimable or
+  # is governed by a caller-supplied fixed value or prior.
+  if (!is.null(em_config) && !is.null(em_config$initial_depletion)) {
+    if (!is.null(fixed_params) && "log_d0" %in% names(fixed_params)) {
+      stop("Specify initial depletion through either initial_depletion or fixed_params, not both", call. = FALSE)
+    }
+    fixed_params <- c(fixed_params, list(log_d0 = log(em_config$initial_depletion)))
   }
   fit_options$fixed_params <- fixed_params
 
-  tryCatch(
-    withCallingHandlers(
-      {
-        fit <- fit_pella_tomlinson_model(
-          data,
-          options = fit_options
-        )
+  fit <- tryCatch(
+    SurplusProductionModel::fit_pella_tomlinson_model(data, options = fit_options),
+    error = function(e) {
+      stop("Estimation-model fitting failed: ", conditionMessage(e), call. = FALSE)
+    }
+  )
+  if (!isTRUE(fit$fitted)) {
+    stop("Estimation-model fitting did not converge", call. = FALSE)
+  }
 
-        if (!fit$fitted) {
-          return(NULL)
-        }
-
-        ref <- calculate_reference_points(fit)
-        bio <- estimate_biomass(fit)
-        current_b <- tail(bio$biomass, 1)
-
-        if (length(current_b) != 1 || !is.finite(current_b)) {
-          return(NULL)
-        }
-
-        # Extract K. Accept both aggregate (K) and area-specific (K.A1, K.A2, ...)
-        # parameterisations and sum to total carrying capacity.
-        k_names <- grep("^K($|\\.)", names(fit$parameters), value = TRUE)
-        if (length(k_names) == 0) {
-          return(NULL)
-        }
-        total_K <- sum(fit$parameters[k_names])
-
-        # Plausibility guard. A divergent fit can report success while
-        # returning a biomass or carrying capacity many orders of magnitude
-        # beyond any realistic stock size, which would drive the harvest
-        # control rule to an extreme catch limit. Such estimates are rejected
-        # (returning NULL, treated as a convergence failure) so that the
-        # previous assessment is carried forward. The ceiling is a generous
-        # multiple of the operating-model carrying capacity.
-        tp <- om_config$true_params
-        k_ref <- if (!is.null(tp$K)) {
-          sum(as.numeric(tp$K))
-        } else if (!is.null(tp$B_initial)) {
-          sum(as.numeric(tp$B_initial))
-        } else {
-          NA_real_
-        }
-        max_factor <- if (!is.null(em_config$max_biomass_factor)) {
-          as.numeric(em_config$max_biomass_factor)
-        } else {
-          10
-        }
-        if (!is.finite(total_K) || total_K <= 0 || current_b <= 0) {
-          return(NULL)
-        }
-        if (is.finite(k_ref) &&
-          (current_b > max_factor * k_ref || total_K > max_factor * k_ref)) {
-          return(NULL)
-        }
-
-        list(
-          est_biomass = current_b,
-          K           = total_K,
-          msy         = ref$msy,
-          bmsy        = ref$bmsy,
-          fmsy        = ref$fmsy,
-          converged   = TRUE
-        )
-      },
-      warning = function(w) invokeRestart("muffleWarning")
+  ref_bio <- tryCatch(
+    list(
+      ref = SurplusProductionModel::calculate_reference_points(fit),
+      bio = SurplusProductionModel::estimate_biomass(fit)
     ),
-    error = function(e) NULL
+    error = function(e) {
+      stop("Estimation-model fitting failed: ", conditionMessage(e), call. = FALSE)
+    }
+  )
+  ref <- ref_bio$ref
+  bio <- ref_bio$bio
+  current_b <- tail(bio$biomass, 1)
+  if (length(current_b) != 1 || !is.finite(current_b) || current_b <= 0) {
+    stop("Estimation-model fitting returned an invalid current biomass estimate", call. = FALSE)
+  }
+  if (!is.finite(ref$bmsy) || ref$bmsy <= 0) {
+    stop("Estimation-model fitting returned an invalid BMSY estimate", call. = FALSE)
+  }
+  if (!is.finite(ref$fmsy) || ref$fmsy <= 0) {
+    stop("Estimation-model fitting returned an invalid FMSY estimate", call. = FALSE)
+  }
+
+  # The aggregate non-spatial EM carrying capacity is its observable B0
+  # proxy. It is deliberately not compared with OM truth in the management
+  # cycle.
+  k_names <- grep("^K($|\\.)", names(fit$parameters), value = TRUE)
+  if (length(k_names) == 0) {
+    stop("Estimation-model fitting returned no carrying-capacity estimate", call. = FALSE)
+  }
+  b0_proxy <- sum(fit$parameters[k_names])
+  if (!is.finite(b0_proxy) || b0_proxy <= 0) {
+    stop("Estimation-model fitting returned an invalid B0 proxy", call. = FALSE)
+  }
+
+  list(
+    est_biomass = current_b,
+    b0_proxy    = b0_proxy,
+    msy         = ref$msy,
+    bmsy        = ref$bmsy,
+    umsy        = ref$fmsy,
+    converged   = TRUE
   )
 }
 
@@ -518,7 +581,8 @@ mse_simulation <- function(operating_model,
 #' @noRd
 .run_single_sim <- function(sim_seed, scenario, om_config, em_config,
                             n_proj_years, n_areas, obs_error_params,
-                            movement_kernel, initial_tac, min_assess_years,
+                            movement_kernel, initial_tac, historical_data,
+                            min_assess_years,
                             tp) {
   if (!is.null(sim_seed)) set.seed(sim_seed)
 
@@ -527,25 +591,47 @@ mse_simulation <- function(operating_model,
   # State
   biomass <- B_initial
   impl_eps <- NULL # AR(1) implementation-error state; NULL triggers stationary initialisation
-  process_state <- rep(0, n_areas)
+  process_state <- NULL # NULL triggers stationary AR1 initialisation
   obs_eps <- NULL # AR(1) observation-error state; NULL triggers stationary initialisation
 
   # Storage
   biomass_store <- matrix(NA_real_, n_proj_years, n_areas)
   catch_store <- matrix(NA_real_, n_proj_years, n_areas)
+  requested_catch_store <- matrix(NA_real_, n_proj_years, n_areas)
+  catch_constrained_store <- matrix(FALSE, n_proj_years, n_areas)
   tac_store <- rep(NA_real_, n_proj_years)
   est_bio_store <- rep(NA_real_, n_proj_years)
   hcr_bio_store <- rep(NA_real_, n_proj_years)
   em_fit_success_store <- rep(NA_real_, n_proj_years)
 
-  # Accumulated histories for EM
-  cpue_history <- data.frame(year = integer(0), cpue = numeric(0))
-  catch_history <- data.frame(year = integer(0), catch = numeric(0))
+  # Accumulated histories for EM. Historical inputs are the observations
+  # available at the start of the prospective projection.
+  cpue_history <- if (is.null(historical_data)) {
+    data.frame(year = integer(0), cpue = numeric(0))
+  } else {
+    historical_data$cpue_data
+  }
+  catch_history <- if (is.null(historical_data)) {
+    data.frame(year = integer(0), catch = numeric(0))
+  } else {
+    historical_data$catch_data
+  }
+  projection_years <- if (is.null(historical_data)) {
+    seq_len(n_proj_years)
+  } else {
+    max(catch_history$year) + seq_len(n_proj_years)
+  }
 
   # Management state
   current_tac <- initial_tac
   last_em_result <- NULL
   assess_freq <- scenario$assessment_frequency
+  has_initial_assessment <- !is.null(historical_data)
+  if (has_initial_assessment) {
+    last_em_result <- .fit_em_safely(cpue_history, catch_history, em_config, om_config)
+    ref_pts <- .build_hcr_ref_points(last_em_result, tp)
+    current_tac <- scenario$harvest_control_rule(last_em_result$est_biomass, ref_pts)
+  }
 
   # Optional fixed catch-allocation weights by area.
   # If omitted, catch is allocated by current biomass share.
@@ -614,41 +700,32 @@ mse_simulation <- function(operating_model,
 
   q_vec <- rep_len(as.numeric(tp$q), n_areas)
 
-  # Maximum within-year exploitation fraction used to cap realised catch at the
-  # available biomass (see the catch step below). Overridable via the operating
-  # model configuration; defaults to 0.95 (at least 5% escapement retained).
-  u_max_harvest <- if (!is.null(om_config$max_harvest_rate)) {
-    as.numeric(om_config$max_harvest_rate)
-  } else {
-    0.95
-  }
+  # An exploitation cap is only applied when explicitly specified as an OM
+  # implementation constraint. There is no implicit escapement rule.
+  u_max_harvest <- om_config$max_harvest_rate
 
   for (yr in seq_len(n_proj_years)) {
     # Record true biomass
     biomass_store[yr, ] <- biomass
 
-    # 1. Assessment decision (uses data accumulated from years 1..yr-1)
+    # 1. Assessment decision. A historical assessment is made before the
+    # first projection; later assessments occur after each full interval.
     enough_data <- nrow(cpue_history) >= min_assess_years
-    on_schedule <- (yr %% assess_freq) == 0
+    on_schedule <- if (has_initial_assessment) {
+      yr > 1L && ((yr - 1L) %% assess_freq) == 0L
+    } else {
+      (yr %% assess_freq) == 0L
+    }
     if (on_schedule && enough_data) {
       em_result <- .fit_em_safely(
         cpue_history, catch_history, em_config, om_config
       )
 
-      em_fit_success_store[yr] <- if (!is.null(em_result)) 1 else 0
+      em_fit_success_store[yr] <- 1
+      last_em_result <- em_result
 
-      if (!is.null(em_result)) {
-        last_em_result <- em_result
-      }
-      # else: keep previous result (convergence failure handling)
-
-      # Estimated biomass for HCR
-      est_b <- if (!is.null(last_em_result)) {
-        last_em_result$est_biomass
-      } else {
-        sum(biomass) # fallback: perfect knowledge
-      }
-
+      # Estimated biomass and reference points are entirely EM-derived.
+      est_b <- last_em_result$est_biomass
       ref_pts <- .build_hcr_ref_points(last_em_result, tp)
       current_tac <- scenario$harvest_control_rule(est_b, ref_pts)
     } else {
@@ -666,11 +743,7 @@ mse_simulation <- function(operating_model,
       NA_real_
     }
 
-    hcr_est_vec <- if (is.finite(est_bio_store[yr])) {
-      est_bio_store[yr]
-    } else {
-      sum(biomass)
-    }
+    hcr_est_vec <- est_bio_store[yr]
     hcr_bio_store[yr] <- if (length(hcr_est_vec) > 0 && all(is.finite(hcr_est_vec))) {
       sum(hcr_est_vec)
     } else {
@@ -678,7 +751,7 @@ mse_simulation <- function(operating_model,
     }
 
     if (yr == 1 && is.na(em_fit_success_store[yr])) {
-      em_fit_success_store[yr] <- 0
+      em_fit_success_store[yr] <- if (has_initial_assessment) 1 else 0
     }
 
     if (!is.finite(em_fit_success_store[yr])) {
@@ -708,50 +781,36 @@ mse_simulation <- function(operating_model,
     )
     catch <- impl_result$catch
     impl_eps <- impl_result$eps
+    requested_catch <- catch
 
-    # Cap realised catch at the available biomass. Removals in a year cannot
-    # exceed a maximum exploitation fraction of the current biomass; this keeps
-    # the recorded catch physical and prevents an implausible catch limit (for
-    # example from a divergent estimation-model fit) from driving biomass
-    # negative. The cap is applied per area against the start-of-year biomass.
-    catch <- pmin(catch, u_max_harvest * biomass)
+    if (!is.null(u_max_harvest)) {
+      maximum_catch <- u_max_harvest * biomass
+      catch_constrained_store[yr, ] <- requested_catch > maximum_catch
+      catch <- pmin(requested_catch, maximum_catch)
+    }
 
     catch_store[yr, ] <- catch
+    requested_catch_store[yr, ] <- requested_catch
 
-    # 3. Generate CPUE observation from total biomass (pre-fishing).
-    # Catchability is catch-weighted across areas so that the observed
-    # index is dominated by the areas where fishing effort is concentrated.
-    # If total catch is zero, fall back to biomass weighting.
-    #
-    # Note: because the weights shift with the spatial catch distribution, the
-    # effective aggregate catchability q_agg varies from year to year. The
-    # single-index estimation model assumes a constant q and cannot represent
-    # this variation, so the aggregate index is a deliberate misspecification
-    # (robustness) stressor rather than a neutral spatial aggregation. The
-    # resulting index is not exactly proportional to total biomass.
-    b_total <- sum(biomass)
-    q_agg <- if (n_areas > 1) {
-      catch_total <- sum(catch)
-      if (catch_total > 0) {
-        sum(q_vec * catch) / catch_total
-      } else {
-        sum(q_vec * biomass) / pmax(b_total, 1e-8)
-      }
-    } else {
-      q_vec[[1L]]
-    }
+    # 3. Generate a fishery-dependent index from pre-fishing biomass. The
+    # year-specific realised catch shares are the available proxy for the
+    # spatial fishing footprint. This produces I_t = sum_a w_at q_a B_at,
+    # where w_at = C_at / sum_a C_at. If no catch occurs, biomass shares are
+    # used solely to retain a defined index for that year.
+    expected_index <- .catch_share_index(biomass, catch, q_vec)
     cpue_step <- .simulate_cpue_step(
-      true_biomass_total = b_total,
+      true_biomass_total = sum(biomass),
       obs_error_params   = obs_error_params,
-      q                  = q_agg,
-      year               = yr,
-      previous_eps       = obs_eps
+      q                  = 1,
+      year               = projection_years[yr],
+      previous_eps       = obs_eps,
+      expected_index     = expected_index
     )
     obs_eps <- cpue_step$eps
     cpue_history <- rbind(cpue_history, cpue_step$cpue_row)
     catch_history <- rbind(
       catch_history,
-      data.frame(year = as.integer(yr), catch = sum(catch))
+      data.frame(year = as.integer(projection_years[yr]), catch = sum(catch))
     )
 
     # 4. Project biomass forward
@@ -773,6 +832,8 @@ mse_simulation <- function(operating_model,
   list(
     biomass           = biomass_store,
     catch             = catch_store,
+    requested_catch   = requested_catch_store,
+    catch_constrained = catch_constrained_store,
     tac               = tac_store,
     estimated_biomass = est_bio_store,
     hcr_biomass_used  = hcr_bio_store,
@@ -782,12 +843,35 @@ mse_simulation <- function(operating_model,
 }
 
 
+#' Calculate a catch-share-weighted aggregate index
+#' @noRd
+.catch_share_index <- function(biomass, catch, q) {
+  biomass <- as.numeric(biomass)
+  catch <- as.numeric(catch)
+  q <- rep_len(as.numeric(q), length(biomass))
+  if (length(catch) != length(biomass) || any(!is.finite(biomass)) ||
+    any(!is.finite(catch)) || any(!is.finite(q)) || any(biomass <= 0) ||
+    any(catch < 0) || any(q <= 0)) {
+    stop("biomass, catch, and q must be finite compatible vectors with positive biomass and q", call. = FALSE)
+  }
+
+  weights <- if (sum(catch) > 0) {
+    catch / sum(catch)
+  } else {
+    biomass / sum(biomass)
+  }
+  sum(weights * q * biomass)
+}
+
+
 #' Combine per-replicate results into trajectory arrays
 #' @noRd
 .combine_trajectories <- function(sim_results, n_sims, n_proj_years,
                                   n_areas) {
   biomass <- array(NA_real_, dim = c(n_sims, n_proj_years, n_areas))
   catch_arr <- array(NA_real_, dim = c(n_sims, n_proj_years, n_areas))
+  requested_catch_arr <- array(NA_real_, dim = c(n_sims, n_proj_years, n_areas))
+  catch_constrained_arr <- array(FALSE, dim = c(n_sims, n_proj_years, n_areas))
   hr_arr <- array(NA_real_, dim = c(n_sims, n_proj_years, n_areas))
   tac_mat <- matrix(NA_real_, n_sims, n_proj_years)
   est_bio <- matrix(NA_real_, n_sims, n_proj_years)
@@ -798,6 +882,8 @@ mse_simulation <- function(operating_model,
     sim <- sim_results[[i]]
     biomass[i, , ] <- sim$biomass
     catch_arr[i, , ] <- sim$catch
+    requested_catch_arr[i, , ] <- sim$requested_catch
+    catch_constrained_arr[i, , ] <- sim$catch_constrained
     hr_arr[i, , ] <- sim$harvest_rate
     tac_mat[i, ] <- sim$tac
     est_bio[i, ] <- sim$estimated_biomass
@@ -808,6 +894,8 @@ mse_simulation <- function(operating_model,
   list(
     biomass           = biomass,
     catch             = catch_arr,
+    requested_catch   = requested_catch_arr,
+    catch_constrained = catch_constrained_arr,
     harvest_rate      = hr_arr,
     tac               = tac_mat,
     estimated_biomass = est_bio,

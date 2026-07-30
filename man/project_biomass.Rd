@@ -31,10 +31,12 @@ population parameters.}
 
 \item{process_noise}{Logical. Whether to add stochastic process noise.
 Default \code{TRUE} if \code{sigma_process} is present in
-\code{true_params}.}
+\code{true_params}. For an AR1 process, \code{sigma_process} is the
+innovation SD, consistent with SurplusProductionModel.}
 
 \item{bias_correction}{Logical. Whether to apply lognormal mean bias
-correction (\eqn{-\sigma_p^2/2}) when process noise is enabled.
+correction using the marginal process-error variance when process noise is
+enabled.
 Default \code{TRUE}.}
 
 \item{process_state}{Optional previous process-error state for AR1 noise.
@@ -62,10 +64,12 @@ where
 For multi-area models, \eqn{K} is distributed across areas proportional
 to initial biomass \eqn{B_\mathrm{initial}}.
 
-If \code{sigma_process > 0}, log-scale process noise is added:
+If \code{sigma_process > 0}, log-scale process noise is added. For an AR1
+process, \code{sigma_process} is the innovation SD:
 \deqn{B_{t+1,a} = (B_{t,a} + P(B_{t,a}) - C_{t,a}) \cdot
-  \exp(\varepsilon_a - \sigma_p^2/2)}
-where \eqn{\varepsilon_a \sim N(0, \sigma_p^2)}.
+  \exp(\varepsilon_a - \mathrm{Var}(\varepsilon_a)/2)}
+where \eqn{\varepsilon_t = \rho\varepsilon_{t-1} + \eta_t} and
+\eqn{\eta_t \sim N(0, \sigma_p^2)}.
 
 Spatial redistribution (when \code{movement_rate > 0}):
 \deqn{B'_a = (1 - \rho) \cdot B_a + \rho \cdot \sum_b K_{ab} \cdot B_b}

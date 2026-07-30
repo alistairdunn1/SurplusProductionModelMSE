@@ -25,13 +25,12 @@ test_that("performance-metric reference points match the canonical helper", {
   }
 })
 
-test_that("HCR fallback reference points match the canonical helper", {
+test_that("HCR reference points require a successful estimation model", {
   tp <- list(r = 0.3, K = 5000, m = 2)
-  ref <- SurplusProductionModelMSE:::.build_hcr_ref_points(NULL, tp)
-  rp <- SurplusProductionModel::pella_tomlinson_reference_points(0.3, 5000, 2)
-  expect_equal(ref$BMSY, rp$bmsy)
-  expect_equal(ref$FMSY, rp$fmsy)
-  expect_equal(ref$MSY, rp$msy)
+  expect_error(
+    SurplusProductionModelMSE:::.build_hcr_ref_points(NULL, tp),
+    "successful estimation-model result"
+  )
 })
 
 test_that("OM production at BMSY equals MSY (dynamics match reference points)", {

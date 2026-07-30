@@ -165,6 +165,24 @@ test_that("process noise is reproducible with seed", {
   expect_identical(r1, r2)
 })
 
+test_that("AR1 process sigma is the innovation standard deviation", {
+  cfg <- make_single_config(sigma_process = 0.2)
+  cfg$true_params$process_error_structure <- "ar1"
+  cfg$true_params$rho <- 0.6
+  deterministic <- project_biomass(3000, 100, cfg, process_noise = FALSE)
+
+  innovations <- replicate(2000, {
+    step <- project_biomass(
+      3000, 100, cfg,
+      process_state = 0,
+      return_process_state = TRUE,
+      bias_correction = FALSE
+    )
+    log(step$biomass / deterministic)
+  })
+  expect_equal(stats::sd(innovations), 0.2, tolerance = 0.02)
+})
+
 test_that("process_noise = FALSE overrides sigma_process", {
   cfg <- make_single_config(
     r = 0.3, K = 5000, m = 2,

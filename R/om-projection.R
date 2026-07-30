@@ -69,9 +69,11 @@ build_movement_kernel <- function(movement_cost_matrix,
 #'   \code{om_config$n_areas > 1}, it will be computed from the config.
 #' @param process_noise Logical. Whether to add stochastic process noise.
 #'   Default \code{TRUE} if \code{sigma_process} is present in
-#'   \code{true_params}.
+#'   \code{true_params}. For an AR1 process, \code{sigma_process} is the
+#'   innovation SD, consistent with SurplusProductionModel.
 #' @param bias_correction Logical. Whether to apply lognormal mean bias
-#'   correction (\eqn{-\sigma_p^2/2}) when process noise is enabled.
+#'   correction using the marginal process-error variance when process noise is
+#'   enabled.
 #'   Default \code{TRUE}.
 #' @param process_state Optional previous process-error state for AR1 noise.
 #'   Use \code{NULL} for iid process error or the initial step in a series.
@@ -90,10 +92,12 @@ build_movement_kernel <- function(movement_cost_matrix,
 #' For multi-area models, \eqn{K} is distributed across areas proportional
 #' to initial biomass \eqn{B_\mathrm{initial}}.
 #'
-#' If \code{sigma_process > 0}, log-scale process noise is added:
+#' If \code{sigma_process > 0}, log-scale process noise is added. For an AR1
+#' process, \code{sigma_process} is the innovation SD:
 #' \deqn{B_{t+1,a} = (B_{t,a} + P(B_{t,a}) - C_{t,a}) \cdot
-#'   \exp(\varepsilon_a - \sigma_p^2/2)}
-#' where \eqn{\varepsilon_a \sim N(0, \sigma_p^2)}.
+#'   \exp(\varepsilon_a - \mathrm{Var}(\varepsilon_a)/2)}
+#' where \eqn{\varepsilon_t = \rho\varepsilon_{t-1} + \eta_t} and
+#' \eqn{\eta_t \sim N(0, \sigma_p^2)}.
 #'
 #' Spatial redistribution (when \code{movement_rate > 0}):
 #' \deqn{B'_a = (1 - \rho) \cdot B_a + \rho \cdot \sum_b K_{ab} \cdot B_b}
@@ -179,25 +183,35 @@ project_biomass <- function(biomass,
   sigma_p <- if (!is.null(tp$sigma_process)) tp$sigma_process else 0
   process_error_structure <- tolower(as.character(tp$process_error_structure %||% "iid"))
   rho_process <- if (!is.null(tp$rho) && is.finite(tp$rho)) tp$rho else 0
+  if (identical(process_error_structure, "ar1") && abs(rho_process) >= 1) {
+    stop("true_params$rho must be strictly between -1 and 1 for AR1 process error", call. = FALSE)
+  }
   if (is.null(process_noise)) {
     process_noise <- sigma_p > 0
   }
   assert_flag(bias_correction, .var.name = "bias_correction")
 
-  process_state_out <- rep(0, n_areas)
+  process_state_out <- NULL
   if (process_noise && sigma_p > 0) {
     if (identical(process_error_structure, "ar1")) {
-      prev_eps <- if (is.null(process_state)) rep(0, n_areas) else rep_len(as.numeric(process_state), n_areas)
-      innovation_sd <- sigma_p * sqrt(max(0, 1 - rho_process^2))
-      eps <- rho_process * prev_eps + rnorm(n_areas, mean = 0, sd = innovation_sd)
+      marginal_sd <- sigma_p / sqrt(max(1e-12, 1 - rho_process^2))
+      if (is.null(process_state)) {
+        # Initialise from the stationary marginal distribution.
+        eps <- rnorm(n_areas, mean = 0, sd = marginal_sd)
+      } else {
+        prev_eps <- rep_len(as.numeric(process_state), n_areas)
+        eps <- rho_process * prev_eps + rnorm(n_areas, mean = 0, sd = sigma_p)
+      }
+      marginal_variance <- marginal_sd^2
     } else {
       eps <- rnorm(n_areas, mean = 0, sd = sigma_p)
+      marginal_variance <- sigma_p^2
     }
     process_state_out <- eps
     # Optional bias-corrected lognormal noise on positive biomass
     B_positive <- pmax(B_new, 1e-8)
     if (isTRUE(bias_correction)) {
-      B_new <- B_positive * exp(eps - sigma_p^2 / 2)
+      B_new <- B_positive * exp(eps - marginal_variance / 2)
     } else {
       B_new <- B_positive * exp(eps)
     }
@@ -327,7 +341,7 @@ project_trajectory <- function(B_initial,
   # Trajectory matrix: (n_years + 1) rows x n_areas cols
   traj <- matrix(NA_real_, nrow = n_years + 1, ncol = n_areas)
   traj[1, ] <- B_initial
-  process_state <- rep(0, n_areas)
+  process_state <- NULL
 
   for (t in seq_len(n_years)) {
     step <- project_biomass(

@@ -2,7 +2,7 @@
 % Please edit documentation in R/performance-metrics.R
 \name{equilibrium_f}
 \alias{equilibrium_f}
-\title{Compute Equilibrium F at a Given Depletion Level}
+\title{Legacy alias returning an annual exploitation rate.}
 \usage{
 equilibrium_f(x, r, K, m, B_unfished = K)
 }
@@ -19,23 +19,7 @@ for 50 percent of \code{K}).}
 \item{B_unfished}{Numeric scalar. Unfished biomass (= K for the
 Pella-Tomlinson model). Default \code{K}.}
 }
-\value{
-Named numeric vector of equilibrium F values. At equilibrium
-\eqn{F \cdot B = P(B)}, so
-\eqn{F = P(B) / B = \frac{r}{m-1} (1 - (B/K)^{m-1})}.
-}
 \description{
-For the Pella-Tomlinson model, calculate the fishing mortality that
-would produce an equilibrium biomass of \code{x * K}.
-}
-\details{
-The equilibrium depletion F is:
-\deqn{F_{x} = \frac{r}{m-1} \left(1 - (x B_\mathrm{unfished} / K)^{m-1}\right)}
-
-Returns 0 when \eqn{x B_\mathrm{unfished} \geq K} (no production surplus).
-}
-\examples{
-# F that produces 50\% depletion under Schaefer model
-equilibrium_f(0.5, r = 0.3, K = 5000, m = 2)
-
+Use \code{equilibrium_u()} in new analyses. This function is retained only
+for backwards compatibility with earlier package versions.
 }

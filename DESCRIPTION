@@ -1,7 +1,7 @@
 Package: SurplusProductionModelMSE
 Type: Package
 Title: Management Strategy Evaluation
-Version: 0.1.1
+Version: 0.1.3
 Authors@R: 
     person("Alistair", "Dunn", 
            email = "alistair.dunn@oceanenvironmental.co.nz", 
@@ -28,7 +28,6 @@ Imports:
     SurplusProductionModel (>= 0.1.0),
     checkmate (>= 2.0.0),
     ggplot2 (>= 3.4.0),
-    rlang,
     stats,
     utils
 Suggests:

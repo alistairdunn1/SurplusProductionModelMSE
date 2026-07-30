@@ -22,7 +22,17 @@
 #'       for single-index models.}
 #'     \item{n_obs}{Integer (scalar or per-index vector). Number of
 #'       non-missing observations used.}
+#'     \item{by_series}{Data frame of the within-area (and, where relevant,
+#'       within-index) estimates used to construct the aggregate parameters.}
 #'   }
+#'
+#' @details
+#' Temporal autocorrelation is estimated separately for each area/index time
+#' series, retaining only consecutive finite residual pairs. Area-specific
+#' residual variances are pooled using their residual degrees of freedom.
+#' Lag-one correlations are pooled on the Fisher z scale, weighted by the
+#' number of consecutive residual pairs. This avoids treating transitions
+#' between areas as temporal observations.
 #'
 #' @examples
 #' \dontrun{
@@ -44,49 +54,113 @@ calibrate_observation_error <- function(model_fit) {
 
   resid <- model_fit$results$residuals
 
-  # Helper: compute sigma and rho from a residual vector (with NAs)
-  extract_stats <- function(r) {
-    r <- r[is.finite(r)]
-    n <- length(r)
-    if (n < 3) {
-      return(list(sigma = NA_real_, rho = 0, n_obs = n))
+  # Estimate each temporal series independently so area transitions are not
+  # interpreted as successive residuals.
+  extract_series_stats <- function(r) {
+    finite <- is.finite(r)
+    n_obs <- sum(finite)
+    sigma <- if (n_obs >= 2) stats::sd(r[finite]) else NA_real_
+
+    paired <- if (length(r) >= 2) {
+      finite[-length(r)] & finite[-1]
+    } else {
+      logical()
     }
-    s <- sd(r)
-    # Lag-1 autocorrelation (sample)
-    rho_val <- if (n > 3) {
-      stats::cor(r[-n], r[-1])
+    n_pairs <- sum(paired)
+    rho <- if (n_pairs >= 2) {
+      stats::cor(r[-length(r)][paired], r[-1][paired])
     } else {
       0
     }
-    if (!is.finite(rho_val)) rho_val <- 0
-    list(sigma = s, rho = rho_val, n_obs = n)
+    if (!is.finite(rho)) rho <- 0
+
+    list(sigma = sigma, rho = rho, n_obs = n_obs, n_pairs = n_pairs)
+  }
+
+  combine_series_stats <- function(series_stats) {
+    n_obs <- vapply(series_stats, `[[`, integer(1), "n_obs")
+    n_pairs <- vapply(series_stats, `[[`, integer(1), "n_pairs")
+    sigma <- vapply(series_stats, `[[`, numeric(1), "sigma")
+    rho <- vapply(series_stats, `[[`, numeric(1), "rho")
+
+    variance_weights <- pmax(n_obs - 1, 0)
+    valid_sigma <- is.finite(sigma) & variance_weights > 0
+    pooled_sigma <- if (any(valid_sigma)) {
+      sqrt(sum(variance_weights[valid_sigma] * sigma[valid_sigma]^2) /
+        sum(variance_weights[valid_sigma]))
+    } else {
+      NA_real_
+    }
+
+    valid_rho <- is.finite(rho) & n_pairs > 0
+    pooled_rho <- if (any(valid_rho)) {
+      rho_bounded <- pmin(pmax(rho[valid_rho], -0.999999), 0.999999)
+      tanh(stats::weighted.mean(atanh(rho_bounded), n_pairs[valid_rho]))
+    } else {
+      0
+    }
+
+    list(
+      sigma = pooled_sigma,
+      rho = pooled_rho,
+      n_obs = sum(n_obs),
+      n_pairs = sum(n_pairs)
+    )
+  }
+
+  make_series_table <- function(series_stats, areas, label = NULL) {
+    label_column <- if (is.null(label)) {
+      rep(NA_character_, length(areas))
+    } else {
+      rep(label, length(areas))
+    }
+    data.frame(
+      area = areas,
+      label = label_column,
+      sigma = vapply(series_stats, `[[`, numeric(1), "sigma"),
+      rho = vapply(series_stats, `[[`, numeric(1), "rho"),
+      n_obs = vapply(series_stats, `[[`, integer(1), "n_obs"),
+      n_pairs = vapply(series_stats, `[[`, integer(1), "n_pairs"),
+      row.names = NULL
+    )
   }
 
   if (is.array(resid) && length(dim(resid)) == 3) {
     # Multi-index: dim = [year, area, label]
     labels <- dimnames(resid)[[3]]
-    # Pool across areas for each label
+    areas <- dimnames(resid)[[2]] %||% paste0("A", seq_len(dim(resid)[2]))
+    # Pool area-specific estimates for each index label.
     sigmas <- numeric(length(labels))
     rhos <- numeric(length(labels))
     n_obs <- integer(length(labels))
+    series_tables <- vector("list", length(labels))
     for (i in seq_along(labels)) {
-      r_vec <- as.vector(resid[, , i])
-      stats_i <- extract_stats(r_vec)
+      series_stats <- lapply(seq_along(areas), function(area) {
+        extract_series_stats(resid[, area, i])
+      })
+      stats_i <- combine_series_stats(series_stats)
       sigmas[i] <- stats_i$sigma
       rhos[i] <- stats_i$rho
       n_obs[i] <- stats_i$n_obs
+      series_tables[[i]] <- make_series_table(series_stats, areas, labels[i])
     }
     names(sigmas) <- labels
     names(rhos) <- labels
     names(n_obs) <- labels
+    by_series <- do.call(rbind, series_tables)
   } else {
-    # Single-index: vector or matrix [year x area]
-    r_vec <- as.vector(resid)
-    stats_all <- extract_stats(r_vec)
+    # Single-index: vector or matrix [year x area].
+    r_matrix <- as.matrix(resid)
+    areas <- colnames(r_matrix) %||% paste0("A", seq_len(ncol(r_matrix)))
+    series_stats <- lapply(seq_along(areas), function(area) {
+      extract_series_stats(r_matrix[, area])
+    })
+    stats_all <- combine_series_stats(series_stats)
     sigmas <- stats_all$sigma
     rhos <- stats_all$rho
     n_obs <- stats_all$n_obs
     labels <- NULL
+    by_series <- make_series_table(series_stats, areas)
   }
 
   structure(
@@ -94,7 +168,8 @@ calibrate_observation_error <- function(model_fit) {
       sigma  = sigmas,
       rho    = rhos,
       labels = labels,
-      n_obs  = n_obs
+      n_obs  = n_obs,
+      by_series = by_series
     ),
     class = "obs_error_params"
   )
@@ -293,6 +368,10 @@ simulate_cpue <- function(true_biomass,
 #'   biomass before fishing in the current year.
 #' @param obs_error_params An \code{obs_error_params} object.
 #' @param q Numeric scalar. Effective catchability coefficient.
+#' @param expected_index Optional positive scalar giving the deterministic
+#'   expected index before observation error. When supplied, it replaces
+#'   \code{q * true_biomass_total}; this supports spatially weighted aggregate
+#'   indices in the MSE loop.
 #' @param year Integer. Simulation year (stored in the returned data frame).
 #' @param previous_eps Numeric scalar. AR(1) state from the previous year, or
 #'   \code{NULL} for the first call (draws from the stationary distribution).
@@ -306,7 +385,8 @@ simulate_cpue <- function(true_biomass,
 #'
 #' @noRd
 .simulate_cpue_step <- function(true_biomass_total, obs_error_params, q,
-                                year, previous_eps = NULL) {
+                                year, previous_eps = NULL,
+                                expected_index = NULL) {
   sigma <- as.numeric(obs_error_params$sigma[[1]])
   rho   <- as.numeric(obs_error_params$rho[[1]])
 
@@ -319,7 +399,15 @@ simulate_cpue <- function(true_biomass,
       rnorm(1L, mean = 0, sd = innovation_sd)
   }
 
-  cpue_val <- q * true_biomass_total * exp(eps_new - sigma^2 / 2)
+  index_mean <- if (is.null(expected_index)) {
+    q * true_biomass_total
+  } else {
+    as.numeric(expected_index)
+  }
+  if (length(index_mean) != 1 || !is.finite(index_mean) || index_mean <= 0) {
+    stop("expected index must be a positive finite scalar", call. = FALSE)
+  }
+  cpue_val <- index_mean * exp(eps_new - sigma^2 / 2)
 
   list(
     cpue_row = data.frame(

@@ -41,7 +41,7 @@ An object of class \code{mse_performance} containing:
 \item{biomass_risk}{List of biomass risk metrics per threshold.
 Each has \code{per_year}, \code{final_year}, and \code{ever}
 components (aggregate and per-area).}
-\item{f_risk}{List of F risk metrics per threshold (same
+\item{u_risk}{List of annual exploitation-rate risk metrics per threshold (same
 structure as \code{biomass_risk}).}
 \item{catch_stats}{List with \code{mean_catch},
 \code{median_catch}, \code{sd_catch}, and \code{aav}
@@ -49,9 +49,10 @@ structure as \code{biomass_risk}).}
 \item{biomass_ratios}{List with \code{mean_depletion} (B/K),
 \code{mean_b_bmsy} (B/BMSY), \code{final_depletion},
 \code{final_b_bmsy} (aggregate and per-area).}
-\item{reference}{List of reference values: \code{K}, \code{K_area},
-\code{B_initial}, \code{BMSY}, \code{FMSY}, \code{MSY},
-\code{thresholds}, \code{f_thresholds}.}
+\item{reference}{List of reference values: true spatial \code{B0},
+\code{K_area}, \code{B_initial}, \code{BMSY}, \code{UMSY},
+\code{MSY}, \code{thresholds}, and \code{u_thresholds}. Legacy
+F-labelled elements are retained as aliases for compatibility.}
 \item{n_sims}{Number of simulations.}
 \item{n_years}{Number of projection years.}
 \item{n_areas}{Number of areas.}

@@ -14,7 +14,8 @@ em_config(
   control = NULL,
   n_starts = 1L,
   calculate_se = FALSE,
-  priors = NULL
+  priors = NULL,
+  initial_depletion = NULL
 )
 }
 \arguments{
@@ -36,6 +37,25 @@ aggregate observed data to a single-area EM input (default \code{FALSE}).}
 \item{fixed_params}{Named list of parameters to fix (not estimate) in the EM.
 For example, \code{list(m = 2)} to fix the Schaefer shape. \code{NULL}
 means all parameters are estimated.}
+
+\item{control}{Optional optimiser control list passed through to
+\code{\link[SurplusProductionModel]{fit_pella_tomlinson_model}}.}
+
+\item{n_starts}{Integer >= 1. Number of random-restart optimiser runs
+passed through to
+\code{\link[SurplusProductionModel]{fit_pella_tomlinson_model}} (default
+\code{1}).}
+
+\item{calculate_se}{Logical. Whether to compute parameter standard errors
+during EM fitting (default \code{FALSE}).}
+
+\item{priors}{Optional named list of priors passed through to
+\code{\link[SurplusProductionModel]{fit_pella_tomlinson_model}}.}
+
+\item{initial_depletion}{Optional starting biomass depletion for the
+estimation model. Supply an assessment-derived value when the simulated
+series begins from an already exploited stock. If \code{NULL}, initial
+depletion is estimated or controlled through \code{fixed_params}/priors.}
 }
 \value{
 An S3 object of class \code{em_config}.

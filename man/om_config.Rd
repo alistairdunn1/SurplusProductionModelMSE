@@ -10,7 +10,8 @@ om_config(
   movement_cost_matrix = NULL,
   attractiveness = NULL,
   decay = 0,
-  true_params = NULL
+  true_params = NULL,
+  max_harvest_rate = NULL
 )
 }
 \arguments{
@@ -32,6 +33,10 @@ kernel (default 0).}
 \code{r}, \code{K}, \code{m}, \code{sigma_obs}, \code{q}, \code{B_initial}.
 \code{q} and \code{B_initial} may be scalar or per-area vectors. If \code{NULL},
 parameters must be supplied separately.}
+
+\item{max_harvest_rate}{Optional maximum realised annual exploitation rate.
+\code{NULL} (default) applies no additional catch cap. Supply a value in
+\code{(0, 1]} only to represent a documented implementation constraint.}
 }
 \value{
 An S3 object of class \code{om_config}.

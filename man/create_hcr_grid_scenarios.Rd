@@ -12,7 +12,8 @@ create_hcr_grid_scenarios(
 )
 }
 \arguments{
-\item{f_grid}{Numeric vector of positive F targets.}
+\item{f_grid}{Numeric vector of positive annual exploitation-rate targets.
+The argument and family names are retained for backwards compatibility.}
 
 \item{assessment_frequency}{Integer >= 1 giving assessment interval in years.}
 

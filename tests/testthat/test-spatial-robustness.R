@@ -284,16 +284,15 @@ test_that("self-test with low F maintains healthy stock", {
   expect_true(depletion > 0.5)
 })
 
-test_that("self-test with high F depletes stock", {
+test_that("self-test stops when an assessment fit is invalid", {
   om <- make_simple_om()
-  st <- run_self_test(initial_tac = 0, om, hcr_constant_f(0.20),
-    n_sims = 10L, n_proj_years = 15L, seed = 42,
-    min_assess_years = 5L
+  expect_error(
+    run_self_test(initial_tac = 0, om, hcr_constant_f(0.20),
+      n_sims = 10L, n_proj_years = 15L, seed = 42,
+      min_assess_years = 5L
+    ),
+    "Estimation-model fitting"
   )
-  s <- st$summary
-  depletion <- s$value[s$metric == "final_B_K" & s$scope == "aggregate"]
-  # High F should deplete stock below K once assessments begin applying the HCR
-  expect_true(depletion < 0.9)
 })
 
 # ========================================================================
