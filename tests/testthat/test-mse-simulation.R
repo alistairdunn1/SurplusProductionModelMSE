@@ -37,6 +37,20 @@ make_scenario <- function(name = "test", assess_freq = 1L, impl = NULL) {
   )
 }
 
+make_stable_em <- function() {
+  em_config(
+    fixed_params = list(m = 2, sigma_obs = 0.2),
+    control = list(eval.max = 2000, iter.max = 1000),
+    n_starts = 3L,
+    calculate_se = FALSE,
+    priors = list(
+      r = list(dist = "lognormal", meanlog = log(0.3), sdlog = 0.5),
+      K = list(dist = "lognormal", meanlog = log(5000), sdlog = 0.5)
+    ),
+    initial_depletion = 1
+  )
+}
+
 # ========================================================================
 # Input validation
 # ========================================================================
@@ -265,6 +279,7 @@ test_that("TAC is constant between assessments (interim catch)", {
   )
 
   res <- mse_simulation(om,
+    estimation_model = make_stable_em(),
     scenarios = sc, n_sims = 3L,
     n_proj_years = 12L, min_assess_years = 3L,
     initial_tac = 100, seed = 42
@@ -292,6 +307,7 @@ test_that("assessment_frequency = 1 updates TAC every year after min_assess", {
   )
 
   res <- mse_simulation(om,
+    estimation_model = make_stable_em(),
     scenarios = sc, n_sims = 2L,
     n_proj_years = 10L, min_assess_years = 3L,
     initial_tac = 100, seed = 42
@@ -320,6 +336,7 @@ test_that("assessment_frequency = 2 only assesses on even years", {
   )
 
   res <- mse_simulation(om,
+    estimation_model = make_stable_em(),
     scenarios = sc, n_sims = 2L,
     n_proj_years = 10L, min_assess_years = 3L,
     initial_tac = 100, seed = 42
@@ -393,6 +410,7 @@ test_that("an assessment is not applied before sufficient data are available", {
   # is tested directly through the missing-EM-reference test below.
   expect_no_error(
     mse_simulation(initial_tac = 0, om,
+      estimation_model = make_stable_em(),
       scenarios = sc, n_sims = 2L,
       n_proj_years = 8L, min_assess_years = 3L,
       seed = 42
@@ -588,6 +606,7 @@ test_that("simulation with EM fitting completes", {
   expect_no_error(
     res <- mse_simulation(initial_tac = 0, 
       om,
+      estimation_model = make_stable_em(),
       scenarios = sc, n_sims = 2L,
       n_proj_years = 10L, min_assess_years = 5L,
       seed = 42
@@ -610,6 +629,7 @@ test_that("EM updates TAC after first assessment", {
 
   res <- mse_simulation(
     om,
+    estimation_model = make_stable_em(),
     scenarios = sc, n_sims = 2L,
     n_proj_years = 10L, min_assess_years = 5L,
     initial_tac = 100, seed = 42
@@ -678,6 +698,7 @@ test_that("historical EM data initialise the first projected HCR decision", {
   )
   res <- mse_simulation(
     om,
+    estimation_model = make_stable_em(),
     scenarios = make_scenario(),
     n_sims = 1L,
     n_proj_years = 3L,
@@ -690,6 +711,38 @@ test_that("historical EM data initialise the first projected HCR decision", {
   expect_equal(res$projection_years, 2023:2025)
   expect_equal(res$results$test$trajectories$em_fit_success[1, 1], 1)
   expect_true(is.finite(res$results$test$trajectories$tac[1, 1]))
+})
+
+test_that("a converged EM fit supplies a valid sequential warm start", {
+  skip_on_cran()
+  historical_cpue <- data.frame(
+    year = 2018:2022,
+    cpue = c(0.45, 0.43, 0.41, 0.39, 0.37)
+  )
+  historical_catch <- data.frame(
+    year = 2018:2022,
+    catch = c(200, 220, 240, 260, 280)
+  )
+  em <- make_stable_em()
+  first_fit <- SurplusProductionModelMSE:::.fit_em_safely(
+    historical_cpue,
+    historical_catch,
+    em,
+    make_simple_om()
+  )
+
+  expect_true(all(c(
+    "log_r", "log_K.A1", "log_m", "log_q.A1", "log_d0"
+  ) %in% names(first_fit$params_init)))
+  expect_no_error(
+    SurplusProductionModelMSE:::.fit_em_safely(
+      rbind(historical_cpue, data.frame(year = 2023, cpue = 0.35)),
+      rbind(historical_catch, data.frame(year = 2023, catch = 300)),
+      em,
+      make_simple_om(),
+      params_init = first_fit$params_init
+    )
+  )
 })
 
 test_that("no exploitation cap is applied unless explicitly configured", {

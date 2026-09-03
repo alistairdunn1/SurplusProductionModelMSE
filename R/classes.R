@@ -14,7 +14,7 @@ validate_om_config <- function(x) {
   }
 
   required <- c(
-    "n_areas", "movement_rate", "movement_cost_matrix",
+    "n_areas", "transition_matrix", "movement_rate", "movement_cost_matrix",
     "attractiveness", "decay", "true_params"
   )
   missing_fields <- setdiff(required, names(x))
@@ -32,6 +32,21 @@ validate_om_config <- function(x) {
   assert_number(x$decay, lower = 0, .var.name = "decay")
 
   na <- x$n_areas
+
+  if (!is.null(x$transition_matrix)) {
+    tm <- x$transition_matrix
+    if (!is.matrix(tm) || nrow(tm) != na || ncol(tm) != na) {
+      stop("transition_matrix must be a ", na, " x ", na, " matrix", call. = FALSE)
+    }
+    if (any(!is.finite(tm)) || any(tm < 0) ||
+        any(abs(rowSums(tm) - 1) > 1e-10)) {
+      stop("transition_matrix must be finite, non-negative, and have rows that sum to one", call. = FALSE)
+    }
+    if (!is.null(x$movement_cost_matrix) || !is.null(x$attractiveness) ||
+        !identical(as.numeric(x$decay), 0) || !identical(as.numeric(x$movement_rate), 0)) {
+      stop("transition_matrix cannot be combined with movement_rate, movement_cost_matrix, attractiveness, or decay", call. = FALSE)
+    }
+  }
 
   # movement_cost_matrix
 
@@ -84,6 +99,12 @@ validate_om_config <- function(x) {
         min.len = 1, max.len = na, .var.name = "true_params$K_area"
       )
     }
+    if (!is.null(tp$B_unfished)) {
+      assert_numeric(tp$B_unfished,
+        lower = .Machine$double.eps, any.missing = FALSE,
+        len = x$n_areas, .var.name = "true_params$B_unfished"
+      )
+    }
     assert_number(tp$m,
       lower = .Machine$double.eps,
       .var.name = "true_params$m"
@@ -127,7 +148,7 @@ validate_em_config <- function(x) {
   required <- c(
     "n_areas", "estimate_movement", "aggregate_areas",
     "process_noise", "process_error_structure", "fixed_params",
-    "initial_depletion"
+    "initial_depletion", "assessment_failure_action"
   )
   missing_fields <- setdiff(required, names(x))
   if (length(missing_fields) > 0) {
@@ -152,6 +173,13 @@ validate_em_config <- function(x) {
 
   if (!is.null(x$fixed_params)) {
     assert_list(x$fixed_params, names = "named", .var.name = "fixed_params")
+  }
+  if (!identical(length(x$assessment_failure_action), 1L) ||
+    !x$assessment_failure_action %in% c("stop", "close_fishery")) {
+    stop(
+      "assessment_failure_action must be one of: stop, close_fishery",
+      call. = FALSE
+    )
   }
   if (!is.null(x$initial_depletion)) {
     assert_number(x$initial_depletion,

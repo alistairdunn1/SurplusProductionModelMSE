@@ -12,8 +12,8 @@ if errorlevel 1 (
 
 rem Generate documentation with roxygen2
 echo Generating documentation...
-rm -rf SurplusProductionModelMSE.Rcheck
-call R --vanilla < run-roxygen.R
+if exist SurplusProductionModelMSE.Rcheck rmdir /s /q SurplusProductionModelMSE.Rcheck
+call Rscript --vanilla run-roxygen.R
 if errorlevel 1 exit /b 1
 
 rem Build the package (includes vignettes)

@@ -34,6 +34,22 @@ make_spatial_config <- function(n_areas = 3, r = 0.3, K = 15000, m = 2,
 
 # ========================================================================
 # build_movement_kernel
+
+test_that("a transition matrix is applied directly and conserves biomass", {
+  tm <- matrix(c(0.8, 0.2, 0.1, 0.9), nrow = 2, byrow = TRUE)
+  cfg <- om_config(
+    n_areas = 2,
+    transition_matrix = tm,
+    true_params = list(
+      r = 0.1, K = 2000, K_area = c(1000, 1000), m = 2,
+      sigma_obs = 0.1, q = c(1e-4, 1e-4), B_initial = c(500, 500)
+    )
+  )
+  out <- project_biomass(c(500, 500), c(0, 0), cfg, process_noise = FALSE)
+  before_movement <- c(525, 525)
+  expect_equal(out, as.vector(t(tm) %*% before_movement))
+  expect_equal(sum(out), sum(before_movement))
+})
 # ========================================================================
 
 test_that("movement kernel rows sum to 1", {

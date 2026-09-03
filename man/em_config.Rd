@@ -15,7 +15,8 @@ em_config(
   n_starts = 1L,
   calculate_se = FALSE,
   priors = NULL,
-  initial_depletion = NULL
+  initial_depletion = NULL,
+  assessment_failure_action = c("stop", "close_fishery")
 )
 }
 \arguments{
@@ -56,6 +57,10 @@ during EM fitting (default \code{FALSE}).}
 estimation model. Supply an assessment-derived value when the simulated
 series begins from an already exploited stock. If \code{NULL}, initial
 depletion is estimated or controlled through \code{fixed_params}/priors.}
+
+\item{assessment_failure_action}{Management action following a scheduled
+assessment failure: stop the simulation or close the fishery until a
+later assessment converges}
 }
 \value{
 An S3 object of class \code{em_config}.

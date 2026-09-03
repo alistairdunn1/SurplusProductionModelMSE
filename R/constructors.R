@@ -9,6 +9,8 @@
 #' dynamics for MSE simulations.
 #'
 #' @param n_areas Integer >= 1. Number of spatial areas (default 1 = non-spatial).
+#' @param transition_matrix Optional row-stochastic annual movement matrix. Rows
+#'   are origins, columns are destinations, and diagonal entries are retention.
 #' @param movement_rate Numeric in \[0, 1\]. Fraction of biomass redistributed per
 #'   time step (default 0 = no movement).
 #' @param movement_cost_matrix Square matrix of inter-area movement costs,
@@ -20,7 +22,9 @@
 #' @param true_params Named list of true parameter values containing at minimum
 #'   \code{r}, \code{K}, \code{m}, \code{sigma_obs}, \code{q}, \code{B_initial}.
 #'   \code{q} and \code{B_initial} may be scalar or per-area vectors. If \code{NULL},
-#'   parameters must be supplied separately.
+#'   parameters must be supplied separately. Optional \code{B_unfished} contains
+#'   the joint unfished spatial equilibrium used as the biomass reference point
+#'   for each area.
 #' @param max_harvest_rate Optional maximum realised annual exploitation rate.
 #'   \code{NULL} (default) applies no additional catch cap. Supply a value in
 #'   \code{(0, 1]} only to represent a documented implementation constraint.
@@ -52,6 +56,7 @@
 #'
 #' @export
 om_config <- function(n_areas = 1L,
+                      transition_matrix = NULL,
                       movement_rate = 0,
                       movement_cost_matrix = NULL,
                       attractiveness = NULL,
@@ -63,6 +68,7 @@ om_config <- function(n_areas = 1L,
   obj <- structure(
     list(
       n_areas = as.integer(n_areas),
+      transition_matrix = transition_matrix,
       movement_rate = movement_rate,
       movement_cost_matrix = movement_cost_matrix,
       attractiveness = attractiveness,
@@ -82,6 +88,9 @@ print.om_config <- function(x, ...) {
   cat("Operating Model Configuration\n")
   cat("-----------------------------\n")
   cat("  Areas:         ", x$n_areas, "\n")
+  if (!is.null(x$transition_matrix)) {
+    cat("  Transition matrix:", x$n_areas, "x", x$n_areas, " supplied\n")
+  }
   cat("  Movement rate: ", x$movement_rate, "\n")
   if (!is.null(x$movement_cost_matrix)) {
     cat("  Movement cost matrix: ", x$n_areas, "x", x$n_areas, " supplied\n")
@@ -147,6 +156,9 @@ print.om_config <- function(x, ...) {
 #'   depletion is estimated or controlled through \code{fixed_params}/priors.
 #'
 #' @return An S3 object of class \code{em_config}.
+#' @param assessment_failure_action Management action following a scheduled
+#'   assessment failure: stop the simulation or close the fishery for the
+#'   remainder of the replicate
 #'
 #' @examples
 #' # Single-area EM that fixes shape to Schaefer
@@ -166,13 +178,15 @@ em_config <- function(n_areas = 1L,
                       n_starts = 1L,
                       calculate_se = FALSE,
                       priors = NULL,
-                      initial_depletion = NULL) {
+                      initial_depletion = NULL,
+                      assessment_failure_action = c("stop", "close_fishery")) {
   assert_count(n_areas, positive = TRUE, .var.name = "n_areas")
   assert_flag(process_noise, .var.name = "process_noise")
   process_error_structure <- match.arg(
     tolower(as.character(process_error_structure)),
     c("iid", "ar1")
   )
+  assessment_failure_action <- match.arg(assessment_failure_action)
 
   obj <- structure(
     list(
@@ -186,7 +200,8 @@ em_config <- function(n_areas = 1L,
       n_starts = as.integer(n_starts),
       calculate_se = calculate_se,
       priors = priors,
-      initial_depletion = initial_depletion
+      initial_depletion = initial_depletion,
+      assessment_failure_action = assessment_failure_action
     ),
     class = "em_config"
   )

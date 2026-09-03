@@ -336,6 +336,21 @@ calculate_performance_metrics <- function(trajectories,
   n_areas <- om_config$n_areas
   tp <- om_config$true_params
 
+  # Prefer the equilibrium used to initialise the operating-model draw. This
+  # keeps performance reference points identical to those used when historical
+  # depletion was handed over to the projection.
+  if (!is.null(tp$B_unfished)) {
+    B_unfished <- as.numeric(tp$B_unfished)
+    if (length(B_unfished) != n_areas || any(!is.finite(B_unfished)) ||
+        any(B_unfished <= 0)) {
+      stop(
+        "true_params$B_unfished must contain one positive finite value per area",
+        call. = FALSE
+      )
+    }
+    return(B_unfished)
+  }
+
   B_initial_area <- rep_len(tp$B_initial, n_areas)
   if (!is.null(tp$K_area)) {
     K_area <- rep_len(as.numeric(tp$K_area), n_areas)
@@ -346,8 +361,9 @@ calculate_performance_metrics <- function(trajectories,
   }
 
   # No movement: each area rests at its own carrying capacity (B0 = K).
-  if (n_areas == 1L || is.null(om_config$movement_rate) ||
-    om_config$movement_rate <= 0) {
+  has_transition_matrix <- !is.null(om_config$transition_matrix)
+  if (n_areas == 1L || (!has_transition_matrix &&
+    (is.null(om_config$movement_rate) || om_config$movement_rate <= 0))) {
     return(K_area)
   }
 

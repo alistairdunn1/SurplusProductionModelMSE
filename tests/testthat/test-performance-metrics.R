@@ -85,6 +85,26 @@ test_that("calculate_performance_metrics returns correct class", {
   expect_equal(perf$n_areas, 1)
 })
 
+test_that("performance metrics use the supplied spatial unfished equilibrium", {
+  expected_b_unfished <- c(400, 600)
+  cfg <- om_config(
+    n_areas = 2,
+    transition_matrix = matrix(c(0.8, 0.2, 0.1, 0.9), nrow = 2, byrow = TRUE),
+    true_params = list(
+      r = 0.3,
+      K = 1000,
+      K_area = c(500, 500),
+      m = 2,
+      sigma_obs = 0.2,
+      q = c(1e-4, 1e-4),
+      B_initial = c(320, 480),
+      B_unfished = expected_b_unfished
+    )
+  )
+
+  expect_equal(.om_unfished_biomass(cfg), expected_b_unfished)
+})
+
 test_that("result contains all expected components", {
   cfg <- make_metrics_config()
   traj <- make_trajectories()

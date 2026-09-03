@@ -220,8 +220,11 @@ project_biomass <- function(biomass,
   # Floor at small positive value
   B_new <- pmax(B_new, 0.01)
 
-  # Spatial movement
-  if (n_areas > 1 && om_config$movement_rate > 0) {
+  # Spatial movement. A supplied transition matrix is the complete annual
+  # redistribution rule and therefore requires no additional scaling.
+  if (n_areas > 1 && !is.null(om_config$transition_matrix)) {
+    B_new <- as.vector(t(om_config$transition_matrix) %*% B_new)
+  } else if (n_areas > 1 && om_config$movement_rate > 0) {
     if (is.null(movement_kernel)) {
       dm <- om_config$movement_cost_matrix
       if (is.null(dm)) {
@@ -327,7 +330,9 @@ project_trajectory <- function(B_initial,
 
   # Pre-compute movement kernel
   movement_kernel <- NULL
-  if (n_areas > 1 && om_config$movement_rate > 0) {
+  if (n_areas > 1 && !is.null(om_config$transition_matrix)) {
+    movement_kernel <- om_config$transition_matrix
+  } else if (n_areas > 1 && om_config$movement_rate > 0) {
     dm <- om_config$movement_cost_matrix
     if (is.null(dm)) {
       dm <- matrix(1, n_areas, n_areas)

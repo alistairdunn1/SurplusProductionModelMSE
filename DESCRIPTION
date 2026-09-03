@@ -6,7 +6,7 @@ Authors@R:
     person("Alistair", "Dunn", 
            email = "alistair.dunn@oceanenvironmental.co.nz", 
            role = c("aut", "cre"),
-           comment = c(ORCID = "YOUR-ORCID-ID"))
+           comment = c(""))
 Description: 
     A closed-loop Management Strategy Evaluation (MSE) framework. Provides 
     operating model forward projection, observation and implementation 

@@ -180,7 +180,9 @@ mse_simulation <- function(operating_model,
 
   # --- Pre-compute movement kernel ---
   movement_kernel <- NULL
-  if (n_areas > 1 && operating_model$movement_rate > 0) {
+  if (n_areas > 1 && !is.null(operating_model$transition_matrix)) {
+    movement_kernel <- operating_model$transition_matrix
+  } else if (n_areas > 1 && operating_model$movement_rate > 0) {
     dm <- operating_model$movement_cost_matrix
     if (is.null(dm)) {
       dm <- matrix(1, n_areas, n_areas)
@@ -226,19 +228,28 @@ mse_simulation <- function(operating_model,
     }
 
     sim_fn <- function(i) {
-      .run_single_sim(
-        sim_seed         = if (!is.null(s_seeds)) s_seeds[i] else NULL,
-        scenario         = scenario,
-        om_config        = operating_model,
-        em_config        = estimation_model,
-        n_proj_years     = n_proj_years,
-        n_areas          = n_areas,
-        obs_error_params = obs_error_params,
-        movement_kernel  = movement_kernel,
-        initial_tac      = initial_tac,
-        historical_data  = historical_data,
-        min_assess_years = min_assess_years,
-        tp               = tp
+      tryCatch(
+        .run_single_sim(
+          sim_seed         = if (!is.null(s_seeds)) s_seeds[i] else NULL,
+          scenario         = scenario,
+          om_config        = operating_model,
+          em_config        = estimation_model,
+          n_proj_years     = n_proj_years,
+          n_areas          = n_areas,
+          obs_error_params = obs_error_params,
+          movement_kernel  = movement_kernel,
+          initial_tac      = initial_tac,
+          historical_data  = historical_data,
+          min_assess_years = min_assess_years,
+          tp               = tp
+        ),
+        error = function(e) {
+          stop(
+            "Scenario '", scenario$name, "', simulation ", i, ": ",
+            conditionMessage(e),
+            call. = FALSE
+          )
+        }
       )
     }
 
@@ -469,7 +480,7 @@ mse_simulation <- function(operating_model,
 #' a previous assessment, an initial TAC, or operating-model truth.
 #' @noRd
 .fit_em_safely <- function(cpue_history, catch_history, em_config,
-                           om_config) {
+                           om_config, params_init = NULL) {
   data <- list(
     cpue_data  = cpue_history,
     catch_data = catch_history
@@ -523,13 +534,33 @@ mse_simulation <- function(operating_model,
   fit_options$fixed_params <- fixed_params
 
   fit <- tryCatch(
-    SurplusProductionModel::fit_pella_tomlinson_model(data, options = fit_options),
+    withCallingHandlers(
+      SurplusProductionModel::fit_pella_tomlinson_model(
+        data,
+        params_init = params_init,
+        options = fit_options
+      ),
+      warning = function(w) {
+        if (identical(
+          conditionMessage(w),
+          "Missing CPUE values detected and will be handled in likelihood"
+        )) {
+          invokeRestart("muffleWarning")
+        }
+      }
+    ),
     error = function(e) {
       stop("Estimation-model fitting failed: ", conditionMessage(e), call. = FALSE)
     }
   )
-  if (!isTRUE(fit$fitted)) {
-    stop("Estimation-model fitting did not converge", call. = FALSE)
+  convergence <- fit$results$convergence
+  if (!isTRUE(fit$fitted) || length(convergence) != 1L ||
+    !is.finite(convergence) || convergence != 0) {
+    stop(
+      "Estimation-model fitting did not converge (code ", convergence,
+      ": ", fit$results$convergence_message, ")",
+      call. = FALSE
+    )
   }
 
   ref_bio <- tryCatch(
@@ -566,13 +597,23 @@ mse_simulation <- function(operating_model,
     stop("Estimation-model fitting returned an invalid B0 proxy", call. = FALSE)
   }
 
+  next_params_init <- as.list(fit$results$log_parameters)
+  if (length(next_params_init) == 0L ||
+    is.null(names(next_params_init)) ||
+    any(!is.finite(unlist(next_params_init)))) {
+    stop(
+      "Estimation-model fitting returned invalid log-scale parameters",
+      call. = FALSE
+    )
+  }
   list(
     est_biomass = current_b,
     b0_proxy    = b0_proxy,
     msy         = ref$msy,
     bmsy        = ref$bmsy,
     umsy        = ref$fmsy,
-    converged   = TRUE
+    converged   = TRUE,
+    params_init = next_params_init
   )
 }
 
@@ -626,9 +667,19 @@ mse_simulation <- function(operating_model,
   current_tac <- initial_tac
   last_em_result <- NULL
   assess_freq <- scenario$assessment_frequency
+  assessment_active <- TRUE
   has_initial_assessment <- !is.null(historical_data)
   if (has_initial_assessment) {
-    last_em_result <- .fit_em_safely(cpue_history, catch_history, em_config, om_config)
+    last_em_result <- tryCatch(
+      .fit_em_safely(cpue_history, catch_history, em_config, om_config),
+      error = function(e) {
+        stop(
+          "Initial historical assessment failed: ",
+          conditionMessage(e),
+          call. = FALSE
+        )
+      }
+    )
     ref_pts <- .build_hcr_ref_points(last_em_result, tp)
     current_tac <- scenario$harvest_control_rule(last_em_result$est_biomass, ref_pts)
   }
@@ -650,6 +701,10 @@ mse_simulation <- function(operating_model,
     area_names <- NULL
     if (!is.null(names(tp$B_initial)) && length(tp$B_initial) == n_areas) {
       area_names <- names(tp$B_initial)
+    } else if (!is.null(om_config$transition_matrix) &&
+      !is.null(rownames(om_config$transition_matrix)) &&
+      nrow(om_config$transition_matrix) == n_areas) {
+      area_names <- rownames(om_config$transition_matrix)
     } else if (!is.null(om_config$movement_cost_matrix) &&
       !is.null(rownames(om_config$movement_cost_matrix)) &&
       nrow(om_config$movement_cost_matrix) == n_areas) {
@@ -716,18 +771,48 @@ mse_simulation <- function(operating_model,
     } else {
       (yr %% assess_freq) == 0L
     }
-    if (on_schedule && enough_data) {
-      em_result <- .fit_em_safely(
-        cpue_history, catch_history, em_config, om_config
+    if (assessment_active && on_schedule && enough_data) {
+      assessment_error <- NULL
+      em_result <- tryCatch(
+        .fit_em_safely(
+          cpue_history,
+          catch_history,
+          em_config,
+          om_config,
+          params_init = last_em_result$params_init
+        ),
+        error = function(e) {
+          assessment_error <<- e
+          NULL
+        }
       )
 
-      em_fit_success_store[yr] <- 1
-      last_em_result <- em_result
+      if (!is.null(assessment_error)) {
+        if (!identical(
+          em_config$assessment_failure_action,
+          "close_fishery"
+        )) {
+          stop(
+            "Assessment failed in projection year ", projection_years[yr],
+            ": ", conditionMessage(assessment_error),
+            call. = FALSE
+          )
+        }
+        # This documented management contingency applies zero TAC for the
+        # remainder of the replicate. The failed fit is recorded and no
+        # further assessments are attempted.
+        em_fit_success_store[yr] <- 0
+        current_tac <- 0
+        assessment_active <- FALSE
+      } else {
+        em_fit_success_store[yr] <- 1
+        last_em_result <- em_result
 
-      # Estimated biomass and reference points are entirely EM-derived.
-      est_b <- last_em_result$est_biomass
-      ref_pts <- .build_hcr_ref_points(last_em_result, tp)
-      current_tac <- scenario$harvest_control_rule(est_b, ref_pts)
+        # Estimated biomass and reference points are entirely EM-derived.
+        est_b <- last_em_result$est_biomass
+        ref_pts <- .build_hcr_ref_points(last_em_result, tp)
+        current_tac <- scenario$harvest_control_rule(est_b, ref_pts)
+      }
     } else {
       # Carry forward latest assessment outcome between assessment years.
       if (yr > 1) {

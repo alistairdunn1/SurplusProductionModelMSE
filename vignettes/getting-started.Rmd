@@ -187,8 +187,25 @@ that the harvest control rule responds to the estimated stock state:
 ```{r run-mse}
 set.seed(42)
 
+# Fix the known Schaefer shape and unfished initial state for this example.
+# Broad priors regularise repeated fits to short, observation-error-affected
+# series, while multiple starts and explicit optimiser limits reduce numerical
+# sensitivity without accepting non-converged assessments.
+em <- em_config(
+  fixed_params = list(m = 2),
+  control = list(eval.max = 2000, iter.max = 1000),
+  n_starts = 3L,
+  calculate_se = FALSE,
+  priors = list(
+    r = list(dist = "lognormal", meanlog = log(0.3), sdlog = 0.5),
+    K = list(dist = "lognormal", meanlog = log(5000), sdlog = 0.5)
+  ),
+  initial_depletion = 1
+)
+
 result <- mse_simulation(
   operating_model  = om,
+  estimation_model = em,
   scenarios        = scenarios,
   n_sims           = 50L,
   n_proj_years     = 20L,
@@ -210,8 +227,9 @@ exceeds it, so an assessment is performed every subsequent year of the
 projection and the harvest control rule responds to the current estimated
 biomass. `initial_tac` is unused here because the historical assessment
 already supplies a first estimate; it would apply only if `historical_data`
-were omitted. Because no `estimation_model` is supplied, a default surplus
-production estimation model is fitted at each assessment.
+were omitted. The estimation-model configuration fixed the Schaefer shape and
+initial depletion, applied broad priors to *r* and *K*, and retained the rule
+that any non-converged assessment stopped the simulation.
 
 ### Step 6 — Evaluate Performance
 

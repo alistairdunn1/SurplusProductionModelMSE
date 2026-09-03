@@ -32,7 +32,13 @@ tryCatch(
     cat("Created", length(man_files), "documentation files.\n")
   },
   error = function(e) {
-    cat("ERROR generating documentation:", e$message, "\n")
+    cat(
+      "ERROR generating documentation:\n",
+      conditionMessage(e), "\n",
+      "Condition class: ", paste(class(e), collapse = ", "), "\n",
+      "Call: ", deparse(conditionCall(e)), "\n",
+      sep = ""
+    )
     quit(status = 1)
   }
 )

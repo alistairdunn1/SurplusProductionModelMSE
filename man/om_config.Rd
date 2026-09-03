@@ -6,6 +6,7 @@
 \usage{
 om_config(
   n_areas = 1L,
+  transition_matrix = NULL,
   movement_rate = 0,
   movement_cost_matrix = NULL,
   attractiveness = NULL,
@@ -16,6 +17,9 @@ om_config(
 }
 \arguments{
 \item{n_areas}{Integer >= 1. Number of spatial areas (default 1 = non-spatial).}
+
+\item{transition_matrix}{Optional row-stochastic annual movement matrix. Rows
+are origins, columns are destinations, and diagonal entries are retention.}
 
 \item{movement_rate}{Numeric in [0, 1]. Fraction of biomass redistributed per
 time step (default 0 = no movement).}
@@ -32,7 +36,9 @@ kernel (default 0).}
 \item{true_params}{Named list of true parameter values containing at minimum
 \code{r}, \code{K}, \code{m}, \code{sigma_obs}, \code{q}, \code{B_initial}.
 \code{q} and \code{B_initial} may be scalar or per-area vectors. If \code{NULL},
-parameters must be supplied separately.}
+parameters must be supplied separately. Optional \code{B_unfished} contains
+the joint unfished spatial equilibrium used as the biomass reference point
+for each area.}
 
 \item{max_harvest_rate}{Optional maximum realised annual exploitation rate.
 \code{NULL} (default) applies no additional catch cap. Supply a value in
