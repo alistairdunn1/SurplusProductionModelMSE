@@ -59,8 +59,8 @@ series begins from an already exploited stock. If \code{NULL}, initial
 depletion is estimated or controlled through \code{fixed_params}/priors.}
 
 \item{assessment_failure_action}{Management action following a scheduled
-assessment failure: stop the simulation or close the fishery until a
-later assessment converges}
+assessment failure: stop the simulation or close the fishery for the
+remainder of the replicate}
 }
 \value{
 An S3 object of class \code{em_config}.
