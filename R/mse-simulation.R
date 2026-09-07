@@ -35,6 +35,12 @@
 #'   to these data and the HCR sets the first projected TAC.
 #' @param min_assess_years Integer. Minimum number of accumulated
 #'   data years before the first EM fit (default 5).
+#' @param thresholds Numeric vector of depletion thresholds (as fractions of
+#'   unfished biomass) for the biomass-risk performance indicators, passed to
+#'   \code{\link{calculate_performance_metrics}}. Default \code{c(0.5, 0.2)}
+#'   (the CCAMLR target and limit reference points); pass e.g.
+#'   \code{c(0.5, 0.4, 0.3, 0.2)} to also report the WG-SAM-2024 30%/40%
+#'   proportion-of-years indicators.
 #' @param parallel Logical. Use \pkg{future.apply} for parallel
 #'   replicates (default \code{FALSE}). Requires the \code{future} and
 #'   \code{future.apply} packages (listed in Suggests).
@@ -121,6 +127,7 @@ mse_simulation <- function(operating_model,
                            initial_tac,
                            historical_data = NULL,
                            min_assess_years = 5L,
+                           thresholds = c(0.5, 0.2),
                            parallel = FALSE,
                            seed = NULL,
                            verbose = FALSE) {
@@ -156,6 +163,10 @@ mse_simulation <- function(operating_model,
   assert_count(n_sims, positive = TRUE, .var.name = "n_sims")
   assert_count(n_proj_years, positive = TRUE, .var.name = "n_proj_years")
   assert_count(min_assess_years, positive = TRUE, .var.name = "min_assess_years")
+  assert_numeric(thresholds,
+    lower = 0, upper = 1, any.missing = FALSE,
+    min.len = 1, .var.name = "thresholds"
+  )
   assert_flag(parallel, .var.name = "parallel")
   assert_flag(verbose, .var.name = "verbose")
 
@@ -319,6 +330,7 @@ mse_simulation <- function(operating_model,
     perf <- calculate_performance_metrics(
       trajectories,
       operating_model,
+      thresholds = thresholds,
       start_year = metric_start_year
     )
 

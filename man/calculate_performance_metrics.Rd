@@ -46,6 +46,17 @@ structure as \code{biomass_risk}).}
 \item{catch_stats}{List with \code{mean_catch},
 \code{median_catch}, \code{sd_catch}, and \code{aav}
 (aggregate and per-area).}
+\item{u_stats}{List with \code{mean_u}, \code{median_u}, \code{sd_u},
+and \code{cv_u} for the realised annual exploitation rate actually
+achieved (aggregate and per-area). Distinct from \code{u_risk},
+which reports the probability of exceeding a depletion-linked
+reference rate rather than the realised rate's own distribution.}
+\item{assessment_stats}{List with \code{prob_failure_ever},
+\code{prob_failure_final}, and \code{mean_fraction_years_successful},
+summarising how much of the projection horizon operated under a
+successfully converged assessment. \code{NULL} when the supplied
+trajectories do not include \code{em_fit_success} (e.g. no
+estimation model was configured).}
 \item{biomass_ratios}{List with \code{mean_depletion} (B/K),
 \code{mean_b_bmsy} (B/BMSY), \code{final_depletion},
 \code{final_b_bmsy} (aggregate and per-area).}

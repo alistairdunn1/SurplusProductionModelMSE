@@ -14,6 +14,7 @@ mse_simulation(
   initial_tac,
   historical_data = NULL,
   min_assess_years = 5L,
+  thresholds = c(0.5, 0.2),
   parallel = FALSE,
   seed = NULL,
   verbose = FALSE
@@ -51,6 +52,13 @@ to these data and the HCR sets the first projected TAC.}
 
 \item{min_assess_years}{Integer. Minimum number of accumulated
 data years before the first EM fit (default 5).}
+
+\item{thresholds}{Numeric vector of depletion thresholds (as fractions of
+unfished biomass) for the biomass-risk performance indicators, passed to
+\code{\link{calculate_performance_metrics}}. Default \code{c(0.5, 0.2)}
+(the CCAMLR target and limit reference points); pass e.g.
+\code{c(0.5, 0.4, 0.3, 0.2)} to also report the WG-SAM-2024 30\%/40\%
+proportion-of-years indicators.}
 
 \item{parallel}{Logical. Use \pkg{future.apply} for parallel
 replicates (default \code{FALSE}). Requires the \code{future} and

@@ -103,6 +103,17 @@ equilibrium_f <- function(x, r, K, m, B_unfished = K) {
 #'     \item{catch_stats}{List with \code{mean_catch},
 #'       \code{median_catch}, \code{sd_catch}, and \code{aav}
 #'       (aggregate and per-area).}
+#'     \item{u_stats}{List with \code{mean_u}, \code{median_u}, \code{sd_u},
+#'       and \code{cv_u} for the realised annual exploitation rate actually
+#'       achieved (aggregate and per-area). Distinct from \code{u_risk},
+#'       which reports the probability of exceeding a depletion-linked
+#'       reference rate rather than the realised rate's own distribution.}
+#'     \item{assessment_stats}{List with \code{prob_failure_ever},
+#'       \code{prob_failure_final}, and \code{mean_fraction_years_successful},
+#'       summarising how much of the projection horizon operated under a
+#'       successfully converged assessment. \code{NULL} when the supplied
+#'       trajectories do not include \code{em_fit_success} (e.g. no
+#'       estimation model was configured).}
 #'     \item{biomass_ratios}{List with \code{mean_depletion} (B/K),
 #'       \code{mean_b_bmsy} (B/BMSY), \code{final_depletion},
 #'       \code{final_b_bmsy} (aggregate and per-area).}
@@ -254,6 +265,34 @@ calculate_performance_metrics <- function(trajectories,
   )
   names(catch_stats$by_area) <- paste0("A", seq_len(n_areas))
 
+  # --- Realised exploitation-rate statistics ---
+  # Distribution of the realised annual harvest rate actually achieved by the
+  # HCR, as distinct from u_risk (probability of exceeding a depletion-linked
+  # reference rate). Recommended as its own performance indicator alongside
+  # the WG-SAM-2024 catch/risk metrics.
+  u_stats <- list(
+    aggregate = .rate_stats(harvest_rate_agg),
+    by_area = lapply(seq_len(n_areas), function(a) {
+      .rate_stats(harvest_rate[, , a])
+    })
+  )
+  names(u_stats$by_area) <- paste0("A", seq_len(n_areas))
+
+  # --- Assessment reliability statistics ---
+  # em_fit_success is 1 while the estimation model has a valid assessment in
+  # force and 0 from the first unrecovered assessment failure onward (the
+  # fishery is then closed for the remainder of the replicate; see
+  # assessment_failure_action). This is the closed-loop analogue of an
+  # assessment convergence/reliability indicator: how much of the projection
+  # horizon operated under a successfully assessed fishery, and the
+  # probability that an unrecovered failure occurred at all.
+  assessment_stats <- if (!is.null(trajectories$em_fit_success)) {
+    em_fit_success <- trajectories$em_fit_success[, eval_index, drop = FALSE]
+    .assessment_stats(em_fit_success)
+  } else {
+    NULL
+  }
+
   # --- Biomass ratios ---
   depletion_agg <- biomass_agg / K_total
   b_bmsy_agg <- biomass_agg / BMSY
@@ -298,6 +337,8 @@ calculate_performance_metrics <- function(trajectories,
       u_risk = u_risk,
       f_risk = f_risk_legacy,
       catch_stats = catch_stats,
+      u_stats = u_stats,
+      assessment_stats = assessment_stats,
       biomass_ratios = biomass_ratios,
       reference = list(
         K                 = K_total, # status baseline B0 (unfished biomass)
@@ -501,6 +542,66 @@ calculate_performance_metrics <- function(trajectories,
 }
 
 
+#' Compute realised exploitation-rate statistics from a
+#' \[n_sims x n_years\] matrix
+#' @noRd
+.rate_stats <- function(mat) {
+  if (!is.matrix(mat)) {
+    if (is.numeric(mat) && length(mat) > 0) {
+      mat <- matrix(mat, nrow = 1)
+    } else {
+      stop("Invalid input to .rate_stats: mat must be a numeric matrix")
+    }
+  }
+
+  if (nrow(mat) == 0 || ncol(mat) == 0) {
+    return(list(
+      mean_u = NA_real_, median_u = NA_real_,
+      sd_u = NA_real_, cv_u = NA_real_
+    ))
+  }
+
+  mean_u <- mean(mat, na.rm = TRUE)
+  sd_u <- sd(as.vector(mat), na.rm = TRUE)
+
+  list(
+    mean_u   = mean_u,
+    median_u = median(mat, na.rm = TRUE),
+    sd_u     = sd_u,
+    cv_u     = if (isTRUE(mean_u > 0)) sd_u / mean_u else NA_real_
+  )
+}
+
+
+#' Compute assessment-reliability statistics from an
+#' \[n_sims x n_years\] em_fit_success matrix (1 = converged/in force,
+#' 0 = failed, fishery closed for the remainder of the replicate)
+#' @noRd
+.assessment_stats <- function(mat) {
+  if (!is.matrix(mat)) {
+    if (is.numeric(mat) && length(mat) > 0) {
+      mat <- matrix(mat, nrow = 1)
+    } else {
+      stop("Invalid input to .assessment_stats: mat must be a numeric matrix")
+    }
+  }
+
+  if (nrow(mat) == 0 || ncol(mat) == 0) {
+    return(list(
+      prob_failure_ever = NA_real_, prob_failure_final = NA_real_,
+      mean_fraction_years_successful = NA_real_
+    ))
+  }
+
+  failed <- mat == 0
+  list(
+    prob_failure_ever = mean(apply(failed, 1, any, na.rm = TRUE), na.rm = TRUE),
+    prob_failure_final = mean(failed[, ncol(mat)], na.rm = TRUE),
+    mean_fraction_years_successful = mean(rowMeans(mat, na.rm = TRUE), na.rm = TRUE)
+  )
+}
+
+
 #' @export
 print.mse_performance <- function(x, ...) {
   cat("MSE Performance Metrics\n")
@@ -640,9 +741,62 @@ summary.mse_performance <- function(object, ...) {
     value = cs$mean_catch, stringsAsFactors = FALSE
   )
   rows[[length(rows) + 1]] <- data.frame(
+    metric = "median_catch", scope = "aggregate",
+    value = cs$median_catch, stringsAsFactors = FALSE
+  )
+  rows[[length(rows) + 1]] <- data.frame(
+    metric = "sd_catch", scope = "aggregate",
+    value = cs$sd_catch, stringsAsFactors = FALSE
+  )
+  rows[[length(rows) + 1]] <- data.frame(
+    metric = "cv_catch", scope = "aggregate",
+    value = if (isTRUE(cs$mean_catch > 0)) cs$sd_catch / cs$mean_catch else NA_real_,
+    stringsAsFactors = FALSE
+  )
+  rows[[length(rows) + 1]] <- data.frame(
     metric = "AAV", scope = "aggregate",
     value = cs$aav, stringsAsFactors = FALSE
   )
+
+  # Realised exploitation-rate stats (distribution of U actually achieved,
+  # distinct from the Pr(U>...) reference-rate risk metrics above)
+  if (!is.null(object$u_stats)) {
+    us <- object$u_stats$aggregate
+    rows[[length(rows) + 1]] <- data.frame(
+      metric = "mean_U", scope = "aggregate",
+      value = us$mean_u, stringsAsFactors = FALSE
+    )
+    rows[[length(rows) + 1]] <- data.frame(
+      metric = "median_U", scope = "aggregate",
+      value = us$median_u, stringsAsFactors = FALSE
+    )
+    rows[[length(rows) + 1]] <- data.frame(
+      metric = "sd_U", scope = "aggregate",
+      value = us$sd_u, stringsAsFactors = FALSE
+    )
+    rows[[length(rows) + 1]] <- data.frame(
+      metric = "cv_U", scope = "aggregate",
+      value = us$cv_u, stringsAsFactors = FALSE
+    )
+  }
+
+  # Assessment reliability stats (NULL when no estimation model was
+  # configured, e.g. an operating-model-only simulation)
+  if (!is.null(object$assessment_stats)) {
+    as_ <- object$assessment_stats
+    rows[[length(rows) + 1]] <- data.frame(
+      metric = "prob_assessment_failure_ever", scope = "aggregate",
+      value = as_$prob_failure_ever, stringsAsFactors = FALSE
+    )
+    rows[[length(rows) + 1]] <- data.frame(
+      metric = "prob_assessment_failure_final", scope = "aggregate",
+      value = as_$prob_failure_final, stringsAsFactors = FALSE
+    )
+    rows[[length(rows) + 1]] <- data.frame(
+      metric = "mean_fraction_years_assessment_successful", scope = "aggregate",
+      value = as_$mean_fraction_years_successful, stringsAsFactors = FALSE
+    )
+  }
 
   # Biomass ratios
   br <- object$biomass_ratios$aggregate
