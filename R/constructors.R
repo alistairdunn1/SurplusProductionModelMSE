@@ -460,7 +460,13 @@ create_baseline_scenarios <- function(f_target,
 #' @param assessment_frequency Integer >= 1 giving assessment interval in years.
 #' @param catch_allocation Optional numeric vector of non-negative area weights.
 #' @param include Character vector of HCR families to include. Allowed values are
-#'   `"constant_f"`, `"hockey_20_50"`, and `"hockey_10_40"`.
+#'   `"constant_f"`, `"hockey_20_50"`, `"hockey_10_40"`, and `"hockey_30_44"`.
+#'   `"hockey_30_44"` is WG-SAM-2024/17's Rule 6: a ramp from B = 30% B0 to
+#'   B = 50%x(1-M) B0. The upper threshold is Ross Sea/M = 0.13-specific
+#'   (0.50 * (1 - 0.13) = 0.435, i.e. ~43.5% B0, rounded to 44 in the family
+#'   name for consistency with the other two-digit family names) and is
+#'   hardcoded here the same way the other two families hardcode their own
+#'   fixed thresholds.
 #'
 #' @return A named list of `mse_scenario` objects.
 #' @export
@@ -494,7 +500,7 @@ create_hcr_grid_scenarios <- function(f_grid,
   }
 
   include <- unique(include)
-  allowed <- c("constant_f", "hockey_20_50", "hockey_10_40")
+  allowed <- c("constant_f", "hockey_20_50", "hockey_10_40", "hockey_30_44")
   bad <- setdiff(include, allowed)
   if (length(bad) > 0) {
     stop(
@@ -538,6 +544,23 @@ create_hcr_grid_scenarios <- function(f_grid,
           f_target = f_val,
           b_limit = 0.10,
           b_target = 0.40
+        ),
+        assessment_frequency = assessment_frequency,
+        catch_allocation = catch_allocation
+      )
+    }
+
+    if ("hockey_30_44" %in% include) {
+      # WG-SAM-2024/17 Rule 6: ramp from B = 30% B0 to B = 50%x(1-M) B0.
+      # b_target is Ross Sea/M = 0.13-specific (0.50 * (1 - 0.13) = 0.435),
+      # hardcoded here the same way hockey_20_50/hockey_10_40 hardcode their
+      # own fixed thresholds.
+      scenarios[[length(scenarios) + 1L]] <- create_scenario(
+        name = sprintf("hs3044_%0.3f", f_val),
+        harvest_control_rule = hcr_hockey_stick(
+          f_target = f_val,
+          b_limit = 0.30,
+          b_target = 0.435
         ),
         assessment_frequency = assessment_frequency,
         catch_allocation = catch_allocation

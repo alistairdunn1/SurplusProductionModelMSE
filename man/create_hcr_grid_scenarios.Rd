@@ -20,7 +20,13 @@ The argument and family names are retained for backwards compatibility.}
 \item{catch_allocation}{Optional numeric vector of non-negative area weights.}
 
 \item{include}{Character vector of HCR families to include. Allowed values are
-\code{"constant_f"}, \code{"hockey_20_50"}, and \code{"hockey_10_40"}.}
+\code{"constant_f"}, \code{"hockey_20_50"}, \code{"hockey_10_40"}, and \code{"hockey_30_44"}.
+\code{"hockey_30_44"} is WG-SAM-2024/17's Rule 6: a ramp from B = 30\% B0 to
+B = 50\%x(1-M) B0. The upper threshold is Ross Sea/M = 0.13-specific
+(0.50 * (1 - 0.13) = 0.435, i.e. ~43.5\% B0, rounded to 44 in the family
+name for consistency with the other two-digit family names) and is
+hardcoded here the same way the other two families hardcode their own
+fixed thresholds.}
 }
 \value{
 A named list of \code{mse_scenario} objects.
